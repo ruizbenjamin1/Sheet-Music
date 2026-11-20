@@ -1,0 +1,22 @@
+# Partituras de prueba personales (pueden tener copyright)
+muestras/
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+# Entorno y editores
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

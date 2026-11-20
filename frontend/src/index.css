@@ -1,0 +1,79 @@
+:root {
+  --bg: #faf9f6;
+  --surface: #ffffff;
+  --text: #1d1b20;
+  --muted: #5f5b66;
+  --border: #e3e0e8;
+  --accent: #3b4cca;
+  --ok: #1f7a3a;
+  --bad: #b3261e;
+
+  font: 17px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141317;
+    --surface: #1d1b22;
+    --text: #ece9f1;
+    --muted: #a7a2b0;
+    --border: #34313b;
+    --accent: #9aa6ff;
+    --ok: #6fd28f;
+    --bad: #ff8a80;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 2rem;
+}
+
+.lead {
+  margin: 0 0 24px;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.status {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.status .ok {
+  color: var(--ok);
+}
+
+.status .bad {
+  color: var(--bad);
+}
