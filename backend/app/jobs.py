@@ -90,7 +90,9 @@ def _straighten_photo(src: Path, work_dir: Path, job_id: str) -> Path:
     """Recorta y endereza la hoja de una foto. Si no hace falta o falla, devuelve la original."""
     dst = work_dir / "photo_preprocessed.png"
     try:
-        if preprocess_file(src, dst):
+        # Sin achicar: Audiveris necesita la resolución completa (achicada, confunde los
+        # pentagramas del piano con dos instrumentos). oemer achica por su cuenta.
+        if preprocess_file(src, dst, resize=False):
             log.info("Trabajo %s: foto recortada y enderezada", job_id)
             return dst
         log.info("Trabajo %s: no se encontró una hoja para recortar; se usa la foto original", job_id)
