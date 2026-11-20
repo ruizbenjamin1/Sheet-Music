@@ -17,6 +17,9 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E0-07 — Benjamin confirma que anda  (2026-11-20)
+- En su navegador, http://localhost:5173 muestra "Servidor de lectura conectado". Etapa 0 cerrada.
+
 ### E0-10 — Correcciones de documentación  (2026-11-20)
 - `README.md`: Node 20.19+ o 22.12+. `docs/omr.md`: aclarado qué prueban las pruebas de la API.
 
