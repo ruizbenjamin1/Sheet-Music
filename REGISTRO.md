@@ -17,6 +17,39 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-09 — PWA  (2026-11-20)
+- Íconos PNG 192, 512, maskable 512 y apple-touch-icon 180 en `frontend/public/`. Precaché de 14 entradas (incluye OSMD, Tone y el ejemplo). Samples del piano con CacheFirst en la caché `piano-samples`.
+- Probado con build + preview en Chromium: instalable sin errores, y sin conexión abre, dibuja y toca el ejemplo (si antes se tocó con conexión).
+- Pendiente: probar la instalación en un celular real.
+
+### E1-08 — Tocar la partitura  (2026-11-20)
+- `frontend/src/components/Player.tsx` y `src/lib/playback.ts`: Reproducir/Seguir, Pausa, Detener, velocidad 50–150 % (se puede cambiar mientras suena), cursor sincronizado con `Tone.getDraw`, créditos de Salamander visibles.
+- Tone se carga aparte, al entrar a la partitura. Se evitó un doble disparo intermitente de Tone 15.
+- Probado sin ventana: 30 pasos correctos del ejemplo, tempo, pausa, detener, cambio de ancho, error de carga, 360 px. El sonido falta confirmarlo de oído.
+- Pendientes: al pausar el cursor puede avanzar un paso; sin cambios de tempo en el medio ni dinámicas.
+
+### E1-05 — Unir páginas  (2026-11-20)
+- `merge.py`: error si no hay páginas; aviso si una página sale con otra cantidad de pentagramas (se saltea). Pruebas con MusicXML generado.
+- Pendientes: las ligaduras entre páginas se pierden; decidir si saltear la página es lo que queremos.
+
+### E1-04 — Trabajos en segundo plano y API  (2026-11-20)
+- Sufijo temporal según el formato real, cola de 5 (503), corte de subida a 20 MB por middleware (`upload_limit.py`), 400 en español si falta el archivo, errores técnicos solo al log (también los de oemer).
+- `api.ts`: si el backend manda un mensaje (por ejemplo 503 cola llena) se muestra ese; 502/503/504 sin mensaje = sin conexión.
+- Pruebas con motor falso: camino completo y todos los códigos de error.
+
+### E1-02 — PDF o imagen a páginas  (2026-11-20)
+- `pages.py` revisa los primeros bytes (PDF, PNG, JPEG, WEBP), rechaza PDF con contraseña y páginas que no se pueden convertir.
+- Pruebas con PDF de 1, 3, 10 y 11 páginas, roto, truncado y con contraseña. `pytest`: 37/37.
+
+### E1-07 — Partitura en pantalla  (2026-11-20)
+- `frontend/src/components/ScoreView.tsx`: OSMD con autoResize, título y compositor en HTML, fondo blanco también en modo oscuro, carga diferida de OSMD. Expone la instancia con `onOsmdChange`.
+- Probado a 360 px y 1200 px, claro y oscuro; sin SVG duplicados con StrictMode.
+- Pendiente para E1-08: confirmar el cursor tras redibujar por cambio de ancho.
+
+### E1-06 — Pantalla de subida  (2026-11-20)
+- `frontend/src/App.tsx`: elegir PDF o imagen, sacar foto, abrir MusicXML directo, ejemplo, progreso con cancelar, errores y avisos del backend. `api.ts` pasa la señal de cancelación a `fetch`.
+- Pendientes: cancelar no frena el trabajo en el backend (no hay ruta); `.mxl` comprimido no soportado; el estado del backend se consulta una sola vez.
+
 ### E0-07 — Benjamin confirma que anda  (2026-11-20)
 - En su navegador, http://localhost:5173 muestra "Servidor de lectura conectado". Etapa 0 cerrada.
 

@@ -6,6 +6,7 @@ cambiar por una cola real (Redis, Supabase, etc.) sin tocar la API.
 
 from __future__ import annotations
 
+import logging
 import shutil
 import tempfile
 import threading
@@ -17,10 +18,21 @@ from pathlib import Path
 
 from .merge import merge_pages
 from .omr import OmrEngine, OmrError
-from .pages import InputError, to_page_images
+from .pages import SUFFIXES, InputError, kind_of_format, to_page_images
+
+log = logging.getLogger(__name__)
 
 # Los trabajos terminados se borran de memoria después de este tiempo.
 JOB_TTL_SECONDS = 60 * 60
+# Máximo de trabajos esperando o corriendo a la vez. Cada uno tarda minutos.
+MAX_PENDING_JOBS = 5
+MAX_FILENAME_CHARS = 200
+
+UNEXPECTED_ERROR = "Hubo un error inesperado al leer la partitura. Probá de nuevo o con otro archivo."
+
+
+class QueueFullError(RuntimeError):
+    """Hay demasiados trabajos esperando."""
 
 
 @dataclass
@@ -50,35 +62,56 @@ class Job:
         }
 
 
+def _clean_filename(filename: str) -> str:
+    # Solo para mostrar: sin carpetas y con un largo razonable. Nunca se usa para escribir en disco.
+    name = Path((filename or "").replace("\\", "/")).name.strip()
+    return name[:MAX_FILENAME_CHARS] or "partitura"
+
+
 class JobManager:
-    def __init__(self, engine: OmrEngine, workers: int = 1):
+    def __init__(self, engine: OmrEngine, workers: int = 1, max_pending: int = MAX_PENDING_JOBS):
         self.engine = engine
+        self.max_pending = max_pending
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
         # Un solo worker: el OMR usa mucha CPU y memoria.
         self._pool = ThreadPoolExecutor(max_workers=workers)
 
-    def submit(self, data: bytes, filename: str, kind: str) -> Job:
-        self._cleanup()
-        job = Job(id=uuid.uuid4().hex, filename=filename)
+    def is_full(self) -> bool:
         with self._lock:
+            return self._pending() >= self.max_pending
+
+    def _pending(self) -> int:
+        return sum(1 for j in self._jobs.values() if j.status in ("queued", "running"))
+
+    def submit(self, data: bytes, filename: str, fmt: str) -> Job:
+        """fmt es el formato real del archivo: "pdf", "png", "jpeg" o "webp"."""
+        if fmt not in SUFFIXES:
+            raise ValueError(f"formato desconocido: {fmt}")
+        self._cleanup()
+        job = Job(id=uuid.uuid4().hex, filename=_clean_filename(filename))
+        with self._lock:
+            if self._pending() >= self.max_pending:
+                raise QueueFullError()
             self._jobs[job.id] = job
-        self._pool.submit(self._run, job, data, kind)
+        self._pool.submit(self._run, job, data, fmt)
         return job
 
     def get(self, job_id: str) -> Job | None:
         with self._lock:
             return self._jobs.get(job_id)
 
-    def _run(self, job: Job, data: bytes, kind: str) -> None:
+    def shutdown(self, wait: bool = True) -> None:
+        self._pool.shutdown(wait=wait)
+
+    def _run(self, job: Job, data: bytes, fmt: str) -> None:
         work_dir = Path(tempfile.mkdtemp(prefix="partitura_"))
         try:
             job.status, job.message = "running", "Preparando páginas"
-            suffix = Path(job.filename).suffix.lower() or (".pdf" if kind == "pdf" else ".png")
-            src = work_dir / f"upload{suffix}"
+            src = work_dir / f"upload{SUFFIXES[fmt]}"
             src.write_bytes(data)
 
-            images = to_page_images(src, kind, work_dir / "pages")
+            images = to_page_images(src, kind_of_format(fmt), work_dir / "pages")
             job.pages = len(images)
 
             pages_xml = []
@@ -91,10 +124,11 @@ class JobManager:
             job.musicxml, job.warnings = merge_pages(pages_xml)
             job.status, job.message = "done", "Listo"
         except (InputError, OmrError) as exc:
+            log.info("Trabajo %s falló: %s", job.id, exc)
             job.status, job.error, job.message = "error", str(exc), "Error"
-        except Exception as exc:  # cualquier otra cosa: que el usuario vea algo útil
-            job.status, job.message = "error", "Error"
-            job.error = f"Error inesperado al leer la partitura: {exc}"
+        except Exception:  # el detalle técnico va al log; el usuario ve un mensaje en español
+            log.exception("Error inesperado en el trabajo %s", job.id)
+            job.status, job.error, job.message = "error", UNEXPECTED_ERROR, "Error"
         finally:
             job.finished_at = time.time()
             shutil.rmtree(work_dir, ignore_errors=True)

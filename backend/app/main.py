@@ -8,19 +8,36 @@ Flujo:
 
 from __future__ import annotations
 
+import logging
 import os
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
-from .jobs import JobManager
+from .jobs import JobManager, QueueFullError
 from .omr import OemerEngine
-from .pages import InputError, kind_of
+from .pages import InputError, check_upload, kind_of
+from .upload_limit import UploadLimitMiddleware
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 MAX_UPLOAD_MB = 20
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+CHUNK_BYTES = 1024 * 1024
+
+TOO_BIG = f"El archivo pesa más de {MAX_UPLOAD_MB} MB."
+QUEUE_FULL = "Hay muchas partituras leyéndose en este momento. Probá de nuevo en unos minutos."
 
 app = FastAPI(title="Partituras API", version="0.1.0")
+
+# Corta la subida apenas pasa el límite, antes de que se lea todo el cuerpo.
+# Margen de 1 MB para las cabeceras del multipart. Va antes que CORS para que
+# CORS quede por fuera y el 413 llegue al navegador con sus cabeceras.
+app.add_middleware(
+    UploadLimitMiddleware, path="/api/jobs", max_bytes=MAX_UPLOAD_BYTES + 1024 * 1024, detail=TOO_BIG
+)
 
 allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 app.add_middleware(
@@ -33,25 +50,54 @@ app.add_middleware(
 app.state.jobs = JobManager(OemerEngine())
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    # Los errores de validación de FastAPI vienen en inglés: al usuario le damos uno en español.
+    logging.getLogger(__name__).info("Solicitud inválida en %s: %s", request.url.path, exc.errors())
+    return JSONResponse(status_code=400, content={"detail": "Falta el archivo o la solicitud está mal armada."})
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True, "engine": app.state.jobs.engine.name}
 
 
+async def _read_limited(file: UploadFile) -> bytes:
+    """Lee el archivo por partes y corta apenas pasa el límite."""
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(CHUNK_BYTES):
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=TOO_BIG)
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @app.post("/api/jobs", status_code=202)
 async def create_job(file: UploadFile = File(...)) -> dict:
+    filename = file.filename or "partitura"
     try:
-        kind = kind_of(file.filename or "", file.content_type)
+        kind_of(filename, file.content_type)
     except InputError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
 
-    data = await file.read(MAX_UPLOAD_MB * 1024 * 1024 + 1)
-    if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
-        raise HTTPException(status_code=413, detail=f"El archivo pesa más de {MAX_UPLOAD_MB} MB.")
+    jobs: JobManager = app.state.jobs
+    if jobs.is_full():
+        raise HTTPException(status_code=503, detail=QUEUE_FULL)
+
+    data = await _read_limited(file)
     if not data:
         raise HTTPException(status_code=400, detail="El archivo está vacío.")
+    try:
+        fmt = check_upload(filename, file.content_type, data)
+    except InputError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
 
-    job = app.state.jobs.submit(data, file.filename or "partitura", kind)
+    try:
+        job = jobs.submit(data, filename, fmt)
+    except QueueFullError as exc:
+        raise HTTPException(status_code=503, detail=QUEUE_FULL) from exc
     return job.public()
 
 

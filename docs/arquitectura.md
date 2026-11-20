@@ -35,7 +35,18 @@ Trabajo:
 }
 ```
 
-Errores: `415` formato no soportado, `413` archivo grande, `400` archivo vacío, `404` trabajo inexistente o vencido (se borran a la hora).
+Errores:
+
+| Código | Cuándo |
+| --- | --- |
+| `415` | Formato no soportado, o los primeros bytes no son de un PDF/PNG/JPG/WEBP (o no coinciden con el tipo declarado) |
+| `413` | Archivo de más de 20 MB. La subida se corta apenas pasa el límite, sin leerla entera |
+| `400` | Archivo vacío, o falta el campo `file` |
+| `503` | Cola llena: ya hay 5 trabajos esperando o leyéndose. Reintentar en unos minutos |
+| `404` | Trabajo inexistente o vencido (se borran a la hora) |
+| `409` | `GET …/musicxml` cuando el trabajo todavía no terminó o terminó con error |
+
+Los errores al leer (PDF dañado o con contraseña, más de 10 páginas, el motor no pudo leer) no son códigos HTTP: el trabajo queda en `status: "error"` con el mensaje en `error`. Los mensajes siempre son en español; el detalle técnico queda solo en el log del backend.
 
 ## Desarrollo
 

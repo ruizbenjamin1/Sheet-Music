@@ -9,7 +9,7 @@ Toda etapa termina con dos tareas `[test]`: **pruebas** y **auditoría** (ver `d
 | Etapa | Nombre | Tareas | Hechas | Estado |
 | --- | --- | --- | --- | --- |
 | 0 | Base del proyecto | 10 | 10 | Cerrada |
-| 1 | MVP: subir, leer, ver y tocar | 13 | 0 | En curso |
+| 1 | MVP: subir, leer, ver y tocar | 13 | 7 | En curso |
 | 2 | Aprender | — | — | Pendiente |
 | 3 | Corregir | — | — | Pendiente |
 | 4 | Practicar (MIDI) | — | — | Pendiente |
@@ -45,14 +45,14 @@ Objetivo: subir un PDF o una foto de una partitura impresa, que se lea a MusicXM
 Nota: en el backend ya hay un borrador de E1-02 a E1-05 (`backend/app/pages.py`, `omr/`, `jobs.py`, `merge.py`, `main.py`), escrito al armar la base y **sin probar con partituras reales**. Las tareas parten de ese borrador.
 
 - [ ] **E1-01** `[yo]` Benjamin junta 3 o 4 partituras impresas propias para probar (al menos un PDF de varias páginas y una foto de celular) y las pone en `muestras/`. No se suben a git.
-- [ ] **E1-02** `[omr]` PDF o imagen a páginas (`pages.py`): pruebas con un PDF de 1 y de varias páginas, límite de páginas y archivos rotos.
+- [x] **E1-02** `[omr]` PDF o imagen a páginas (`pages.py`): pruebas con un PDF de 1 y de varias páginas, límite de páginas y archivos rotos.
 - [ ] **E1-03** `[omr]` Motor oemer detrás de `OmrEngine`: correrlo con una muestra, confirmar la descarga de modelos la primera vez y medir cuánto tarda por página. Revisar que no choquen `onnxruntime` y `onnxruntime-gpu`.
-- [ ] **E1-04** `[omr]` Trabajos en segundo plano y API (`POST /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/musicxml`): pruebas con un motor falso, errores claros en español. Incluye lo que encontró la auditoría de la Etapa 0: sufijo del archivo temporal fijo según el tipo (no el nombre que manda el usuario), revisar los primeros bytes para confirmar PDF o imagen, no mostrar errores técnicos en inglés, límite de trabajos en cola, cortar la subida al pasar los 20 MB, y pasar la señal de cancelación a `fetch` en `api.ts`.
-- [ ] **E1-05** `[omr]` Unir páginas en una sola partitura (`merge.py`): pruebas con dos páginas de ejemplo.
-- [ ] **E1-06** `[ui]` Pantalla de subida: elegir PDF o imagen, sacar foto con el celular, abrir un MusicXML directo, botón "Probar con un ejemplo" (`public/samples/oda-a-la-alegria.musicxml`), barra de progreso con el mensaje del backend.
-- [ ] **E1-07** `[ui]` Mostrar la partitura con OSMD, que se adapte al ancho de pantalla.
-- [ ] **E1-08** `[audio]` Tocar la partitura: Tone.js con samples de piano, cursor de OSMD sincronizado, botones reproducir / pausa / detener y control de velocidad.
-- [ ] **E1-09** `[ui]` PWA: íconos PNG 192 y 512, caché de los samples para usar sin conexión, comprobar que se puede instalar.
+- [x] **E1-04** `[omr]` Trabajos en segundo plano y API (`POST /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/musicxml`): pruebas con un motor falso, errores claros en español. Incluye lo que encontró la auditoría de la Etapa 0: sufijo del archivo temporal fijo según el tipo (no el nombre que manda el usuario), revisar los primeros bytes para confirmar PDF o imagen, no mostrar errores técnicos en inglés, límite de trabajos en cola, cortar la subida al pasar los 20 MB, y pasar la señal de cancelación a `fetch` en `api.ts`.
+- [x] **E1-05** `[omr]` Unir páginas en una sola partitura (`merge.py`): pruebas con dos páginas de ejemplo.
+- [x] **E1-06** `[ui]` Pantalla de subida: elegir PDF o imagen, sacar foto con el celular, abrir un MusicXML directo, botón "Probar con un ejemplo" (`public/samples/oda-a-la-alegria.musicxml`), barra de progreso con el mensaje del backend.
+- [x] **E1-07** `[ui]` Mostrar la partitura con OSMD, que se adapte al ancho de pantalla.
+- [x] **E1-08** `[audio]` Tocar la partitura: Tone.js con samples de piano, cursor de OSMD sincronizado, botones reproducir / pausa / detener y control de velocidad.
+- [x] **E1-09** `[ui]` PWA: íconos PNG 192 y 512, caché de los samples para usar sin conexión, comprobar que se puede instalar.
 - [ ] **E1-13** `[yo]` Benjamin decide qué hacer con PyMuPDF, que tiene licencia AGPL: si la app se publica como servicio, obliga a compartir el código del backend. Opciones: publicar el código, o cambiarlo por pypdfium2 (Apache/BSD). Se puede decidir hasta antes de publicar.
 - [ ] **E1-10** `[test]` Medir la precisión de oemer con las muestras de E1-01 (notas bien leídas sobre el total, a ojo por compás). Si es mala, proponer probar homr.
 - [ ] **E1-11** `[test]` Pruebas de la etapa (automáticas + prueba manual completa: subir, leer, ver, tocar).

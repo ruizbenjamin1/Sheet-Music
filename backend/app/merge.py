@@ -8,8 +8,18 @@ from music21 import converter, stream
 from music21.musicxml.m21ToXml import GeneralObjectExporter
 
 
+def _staves(n: int) -> str:
+    return f"{n} pentagrama" if n == 1 else f"{n} pentagramas"
+
+
 def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
-    """Devuelve (musicxml, avisos). Con una sola página la devuelve tal cual."""
+    """Devuelve (musicxml, avisos). Con una sola página la devuelve tal cual.
+
+    Si una página se leyó con otra cantidad de pentagramas que la primera, se saltea
+    y se avisa (no se puede saber a qué pentagrama corresponde cada uno).
+    """
+    if not pages_xml:
+        raise ValueError("merge_pages necesita al menos una página")
     if len(pages_xml) == 1:
         return pages_xml[0], []
 
@@ -22,7 +32,8 @@ def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
         parts = list(score.parts)
         if len(parts) != len(base_parts):
             warnings.append(
-                f"La página {page_no} se leyó con {len(parts)} pentagramas en vez de {len(base_parts)}; la salteé."
+                f"La página {page_no} se leyó con {_staves(len(parts))} en vez de {_staves(len(base_parts))}; "
+                "la salteé."
             )
             continue
         for target, part in zip(base_parts, parts):
