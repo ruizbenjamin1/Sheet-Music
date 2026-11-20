@@ -4,9 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: la app usa toda la pantalla del iPhone y se corre de la muesca con env(safe-area-inset-*). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Partituras</title>
-    <meta name="theme-color" content="#3b4cca" />
+    <meta name="description" content="Leé, mirá y escuchá partituras de piano." />
+    <!-- La barra del navegador / de estado toma el color del fondo de la app. -->
+    <meta name="theme-color" content="#faf9f6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141317" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Instalada en el iPhone (Agregar a inicio): pantalla completa con la barra de estado sobre el fondo. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Partituras" />
+    <meta name="format-detection" content="telephone=no" />
   </head>
   <body>
     <div id="root"></div>

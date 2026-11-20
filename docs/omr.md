@@ -35,7 +35,7 @@ oemer escribe como título (`<work-title>`) el nombre de la imagen temporal (`Up
 `Transcribed by Oemer`; al exportar, music21 pone `<movement-title>` con lo mismo (o `Music21 Fragment` y `Music21`
 si no hay nada). Ninguno es real: el OMR no lee títulos. `merge.py` borra `<work>`, `<movement-title>`,
 `<movement-number>` y los `<creator>` con esos compositores inventados. Sin título, el frontend muestra el nombre del
-archivo (`fallbackTitle` en `ScoreView.tsx`, que carga con `osmd.load(xml, '')` para que OSMD no ponga "Untitled Score").
+archivo (en el encabezado de `App.tsx`; `ScoreView.tsx` carga con `osmd.load(xml, '')` para que OSMD no ponga "Untitled Score").
 
 ### Tope de píxeles (E1-15)
 

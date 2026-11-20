@@ -6,8 +6,8 @@ Todo en el navegador con Tone.js (`tone` 15).
 
 - `Tone.Sampler` con los samples **Salamander Grand Piano** (CC-BY 3.0, Alexander Holm) desde `https://tonejs.github.io/audio/salamander/`. Archivos `A0.mp3`, `C1.mp3`, `Ds1.mp3`, `Fs1.mp3`, `A1.mp3` … `C8.mp3` (el `#` va como `s` en el nombre del archivo).
 - `Tone.start()` tiene que llamarse desde un clic del usuario (política de audio de los navegadores), sin `await` antes: ver "Arrancar el audio".
-- Créditos de los samples: se muestran en chico abajo de los controles del reproductor ("Sonido de piano: Salamander Grand Piano, de Alexander Holm (CC BY 3.0)", con link a la licencia). Si después hay pantalla "Acerca de", repetirlos ahí.
-- Los samples se bajan recién al primer "Reproducir" (mientras tanto se ve "Cargando piano…"; si fallan, un error que pide revisar la conexión). El `Sampler` se libera (`dispose()`) al salir de la pantalla de la partitura.
+- Créditos de los samples: se muestran en chico abajo de la partitura (`PianoCredits` de `Player.tsx`: "Sonido de piano: Salamander Grand Piano, de Alexander Holm (CC BY 3.0)", con link a la licencia). Si después hay pantalla "Acerca de", repetirlos ahí.
+- Los samples se bajan recién al primer "Reproducir" (mientras tanto se ve "Cargando el piano…"; si fallan, un error que pide revisar la conexión). El `Sampler` se libera (`dispose()`) al salir de la pantalla de la partitura.
 
 ## De OSMD a notas
 
@@ -24,7 +24,7 @@ Implementado en `src/lib/playback.ts` (`extractScore(osmd)` → pasos `{ time, n
 
 ## Reproducir
 
-Componente `src/components/Player.tsx` (`<Player osmd={osmd} />`, dentro de `<section className="player">`).
+Componente `src/components/Player.tsx` (`<Player osmd={osmd} />`, dentro de la barra fija de abajo `<section className="player-bar">`). Un solo botón grande hace Reproducir / Seguir (`handlePlay`) o Pausa (`handlePause`) según el estado; al lado, Detener y Velocidad (desplegable).
 
 - Tone.js se carga con `import('tone')` cuando se monta el reproductor (pantalla de la partitura), no en la inicial. Así, al hacer clic, `Tone.start()` se llama directo en el clic, antes de cualquier espera. Si se toca "Reproducir" antes de que Tone termine de bajar, no se arranca nada: se ve "Cargando… En un momento tocá Reproducir otra vez" y, cuando está, "Listo. Tocá Reproducir otra vez" (arrancar el audio después de un `await` no anda en iOS).
 - Cada paso se programa con `transport.schedule(cb, "<ticks>i")` (redondas × `PPQ` × 4) y el cursor se mueve con `Tone.getDraw().schedule(() => cursor.next(), time)` en el mismo tiempo, así lo que se ve coincide con lo que suena.
@@ -34,7 +34,7 @@ Componente `src/components/Player.tsx` (`<Player osmd={osmd} />`, dentro de `<se
 - Pausa: `transport.pause()` + `sampler.releaseAll()`. Detener: `transport.stop()`, `transport.cancel()`, `Draw.cancel()`, `releaseAll()`, `cursor.reset()`.
 - Velocidad (50 % a 150 %, de a 10): se maneja con el tempo del Transport (`transport.bpm.value = bpm × velocidad`). Como los pasos están en ticks, se puede cambiar mientras suena; la duración de cada nota se calcula con el tempo del momento en que se toca.
 - Si la partitura cambia (`osmd` pasa a `null` u otra instancia) o se sale de la pantalla: Transport stop/cancel, `Draw.cancel()`, y los eventos ya programados no tocan el cursor viejo.
-- Con `autoResize`, OSMD redibuja al cambiar el ancho y deja el cursor donde estaba (probado: sigue avanzando en el dibujo nuevo).
+- Al cambiar el ancho o el zoom, `ScoreView` redibuja (`render()`) y el cursor queda donde estaba (probado: sigue avanzando en el dibujo nuevo).
 - En desarrollo, cada paso con notas se loguea con `console.debug('[player] paso', …)` (nivel "Verbose" en la consola); en el build no está.
 - Todavía no: repeticiones / saltos más allá de lo que haga el iterador de OSMD, cambios de tempo en el medio, dinámicas (todas las notas con la misma fuerza).
 
@@ -55,7 +55,7 @@ En dev por la red local (`http://192.168.x.x:5173`) el service worker no corre: 
 
 ### Diagnóstico (solo en desarrollo)
 
-Con `import.meta.env.DEV`, abajo del reproductor hay una línea `[dev]` con: si Tone cargó, estado del `AudioContext`, estado de los samples (`sin pedir` / `cargando` / `cargados` / `error`), `navigator.audioSession.type` (o "no hay"), si se detectó iPhone/iPad y el último error. En el build no está.
+Con `import.meta.env.DEV`, arriba a la derecha de la barra del reproductor hay una pestañita "dev" (un `<details>` plegado) que al tocarla muestra: si Tone cargó, estado del `AudioContext`, estado de los samples (`sin pedir` / `cargando` / `cargados` / `error`), `navigator.audioSession.type` (o "no hay"), si se detectó iPhone/iPad y el último error. En el build no está.
 
 Probado en Chromium sin ventana (Playwright, `--autoplay-policy=user-gesture-required`, con un iPhone simulado por user agent): `resume()` y el `<audio>` salen con `navigator.userActivation.isActive` verdadero, `audioSession.type` pasa a `playback`, samples bloqueados y `resume()` colgado muestran su mensaje, suspender el contexto mientras suena deja "Seguir" y lo retoma. WebKit de Playwright no está instalado: en iPhone real falta probar.
 

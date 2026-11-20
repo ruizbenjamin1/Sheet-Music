@@ -35,6 +35,8 @@ export default function Player({ osmd }: { osmd: OpenSheetMusicDisplay | null })
   const [phase, setPhase] = useState<Phase>('stopped')
   const [error, setError] = useState<string | null>(null)
   const [speed, setSpeed] = useState(100)
+  // Control de velocidad desplegado (en el celular no entra siempre a la vista).
+  const [speedOpen, setSpeedOpen] = useState(false)
   const [toneReady, setToneReady] = useState(false)
   // Se tocó "Reproducir" antes de que Tone.js terminara de bajar: hay que pedir otro toque.
   const [waitingTone, setWaitingTone] = useState(false)
@@ -307,41 +309,45 @@ export default function Player({ osmd }: { osmd: OpenSheetMusicDisplay | null })
     setPhase('stopped')
   }
 
-  function handleSpeed(e: ChangeEvent<HTMLInputElement>) {
-    const value = Number(e.target.value)
-    setSpeed(value)
+  function changeSpeed(value: number) {
+    const clamped = Math.min(MAX_SPEED, Math.max(MIN_SPEED, value))
+    setSpeed(clamped)
     const tone = toneRef.current
     const score = scoreRef.current?.score
-    if (tone && score && phase !== 'stopped') tone.getTransport().bpm.value = score.bpm * (value / 100)
+    if (tone && score && phase !== 'stopped') tone.getTransport().bpm.value = score.bpm * (clamped / 100)
+  }
+
+  function handleSpeed(e: ChangeEvent<HTMLInputElement>) {
+    changeSpeed(Number(e.target.value))
   }
 
   const ready = osmd !== null
   const busy = phase === 'loading'
+  const playing = phase === 'playing'
+
+  const status = !ready
+    ? 'Preparando la partitura…'
+    : busy
+      ? 'Cargando el piano…'
+      : waitingTone
+        ? toneReady
+          ? 'Listo. Tocá "Reproducir" otra vez.'
+          : 'Cargando… En un momento tocá "Reproducir" otra vez.'
+        : ''
 
   return (
-    <>
-      <div className="player-controls">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={handlePlay}
-          disabled={!ready || busy || phase === 'playing'}
-        >
-          {phase === 'paused' ? 'Seguir' : 'Reproducir'}
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={handlePause} disabled={phase !== 'playing'}>
-          Pausa
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={handleStop}
-          disabled={phase !== 'playing' && phase !== 'paused'}
-        >
-          Detener
-        </button>
-        <label className="player-speed">
-          <span>Velocidad</span>
+    <div className="player">
+      {speedOpen && (
+        <div className="player-speed" id="player-speed">
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => changeSpeed(speed - 10)}
+            disabled={speed <= MIN_SPEED}
+            aria-label="Más lento"
+          >
+            <MinusIcon />
+          </button>
           <input
             type="range"
             min={MIN_SPEED}
@@ -349,44 +355,142 @@ export default function Player({ osmd }: { osmd: OpenSheetMusicDisplay | null })
             step={10}
             value={speed}
             onChange={handleSpeed}
+            aria-label="Velocidad"
             aria-valuetext={`${speed} %`}
           />
-          <output>{speed} %</output>
-        </label>
-      </div>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => changeSpeed(speed + 10)}
+            disabled={speed >= MAX_SPEED}
+            aria-label="Más rápido"
+          >
+            <PlusIcon />
+          </button>
+          <button
+            type="button"
+            className="btn btn-quiet player-speed-reset"
+            onClick={() => changeSpeed(100)}
+            disabled={speed === 100}
+          >
+            Normal
+          </button>
+        </div>
+      )}
 
-      <p className="hint" role="status" aria-live="polite">
-        {!ready
-          ? 'Preparando la partitura…'
-          : busy
-            ? 'Cargando piano…'
-            : waitingTone
-              ? toneReady
-                ? 'Listo. Tocá "Reproducir" otra vez.'
-                : 'Cargando… En un momento tocá "Reproducir" otra vez.'
-              : ''}
-      </p>
+      {status && (
+        <p className="player-status" role="status" aria-live="polite">
+          {status}
+        </p>
+      )}
       {error && (
-        <p className="alert alert-error" role="alert">
+        <p className="player-error" role="alert">
           {error}
         </p>
       )}
-      {import.meta.env.DEV && (
-        <p className="player-debug">
-          [dev] Tone: {toneReady ? 'cargado' : 'sin cargar'} · contexto: {contextState} · samples: {samplesState} ·
-          sesión iOS: {audioSessionType() ?? 'no hay'} · iPhone/iPad: {isAppleMobile() ? 'sí' : 'no'}
-          {lastError && <> · último error: {lastError}</>}
-        </p>
-      )}
 
-      <p className="player-credits">
-        Sonido de piano: Salamander Grand Piano, de Alexander Holm (
-        <a href="https://creativecommons.org/licenses/by/3.0/deed.es" target="_blank" rel="noreferrer">
-          CC BY 3.0
-        </a>
-        ).
-      </p>
-    </>
+      <div className="player-controls">
+        <button
+          type="button"
+          className="icon-btn player-stop"
+          onClick={handleStop}
+          disabled={phase !== 'playing' && phase !== 'paused'}
+          aria-label="Detener"
+          title="Detener"
+        >
+          <StopIcon />
+        </button>
+
+        {playing ? (
+          <button type="button" className="btn btn-primary player-main" onClick={handlePause}>
+            <PauseIcon />
+            Pausa
+          </button>
+        ) : (
+          <button type="button" className="btn btn-primary player-main" onClick={handlePlay} disabled={!ready || busy}>
+            {busy ? <span className="spinner" aria-hidden="true" /> : <PlayIcon />}
+            {busy ? 'Cargando…' : phase === 'paused' ? 'Seguir' : 'Reproducir'}
+          </button>
+        )}
+
+        <button
+          type="button"
+          className={`btn btn-quiet player-speed-toggle${speed !== 100 ? ' is-changed' : ''}`}
+          onClick={() => setSpeedOpen((open) => !open)}
+          aria-expanded={speedOpen}
+          aria-controls="player-speed"
+          title="Velocidad"
+        >
+          <span className="player-speed-label">Velocidad</span>
+          <span className="player-speed-value">{speed} %</span>
+        </button>
+      </div>
+
+      {import.meta.env.DEV && (
+        <details className="player-debug">
+          <summary>dev</summary>
+          <p>
+            Tone: {toneReady ? 'cargado' : 'sin cargar'} · contexto: {contextState} · samples: {samplesState} · sesión
+            iOS: {audioSessionType() ?? 'no hay'} · iPhone/iPad: {isAppleMobile() ? 'sí' : 'no'}
+            {lastError && <> · último error: {lastError}</>}
+          </p>
+        </details>
+      )}
+    </div>
+  )
+}
+
+/** Créditos de los samples del piano (CC BY 3.0: es obligatorio mostrarlos donde suena). */
+export function PianoCredits() {
+  return (
+    <p className="credits">
+      Sonido de piano: Salamander Grand Piano, de Alexander Holm (
+      <a href="https://creativecommons.org/licenses/by/3.0/deed.es" target="_blank" rel="noreferrer">
+        CC BY 3.0
+      </a>
+      ).
+    </p>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function PauseIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="6" y="5" width="4.5" height="14" rx="1.2" fill="currentColor" />
+      <rect x="13.5" y="5" width="4.5" height="14" rx="1.2" fill="currentColor" />
+    </svg>
+  )
+}
+
+function StopIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+    </svg>
+  )
+}
+
+function MinusIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
   )
 }
 

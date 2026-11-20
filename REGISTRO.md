@@ -17,6 +17,10 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-22 — Diseño para celular  (2026-11-20)
+- Inicio con "Sacar una foto" grande abajo; lectura con progreso simple; partitura con encabezado fijo, zoom automático al ancho y lupas; reproductor fijo abajo con Reproducir/Pausa, Detener y Velocidad; créditos del piano abajo de la partitura; diagnóstico `[dev]` plegado.
+- Probado con capturas a 360, 375, 390 y 1280 px, claro y oscuro. Lint y build OK.
+
 ### E1-21 — Sonido en el celular  (2026-11-20)
 - `frontend/src/lib/audioUnlock.ts`: en iPhone/iPad, sesión de audio en "playback" y audio de silencio en el primer toque. `Player.tsx` arranca el audio dentro del toque, avisa si no se activa y retoma si iOS lo interrumpe. Línea `[dev]` de diagnóstico solo en desarrollo.
 - Probado en Chromium simulando iPhone; falta el iPhone real.
