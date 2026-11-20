@@ -282,3 +282,68 @@ def test_imagen_gigante_termina_en_error_sin_llamar_al_motor(client, use_engine)
     assert job["status"] == "error"
     assert "demasiado grande" in job["error"]
     assert engine.seen == []
+
+
+def _spy_preprocess(monkeypatch, result=False, fail=False):
+    import app.jobs as jobs_module
+
+    calls: list[Path] = []
+
+    def fake(src: Path, dst: Path, **kwargs) -> bool:
+        calls.append(src)
+        if fail:
+            raise RuntimeError("se rompió el preprocesado")
+        if result:
+            dst.write_bytes(src.read_bytes())
+        return result
+
+    monkeypatch.setattr(jobs_module, "preprocess_file", fake)
+    return calls
+
+
+def test_foto_pasa_por_el_preprocesado(client, use_engine, monkeypatch):
+    calls = _spy_preprocess(monkeypatch, result=True)
+    engine = FakeEngine()
+    use_engine(engine)
+    res = client.post("/api/jobs", files={"file": ("foto.jpg", make_jpeg(), "image/jpeg")})
+    assert _wait(client, res.json()["id"])["status"] == "done"
+    assert [p.name for p in calls] == ["upload.jpg"]
+    # El motor lee la foto enderezada, no la original.
+    assert engine.seen[0].name == "photo_preprocessed.png"
+
+
+def test_pdf_no_pasa_por_el_preprocesado(client, use_engine, monkeypatch):
+    calls = _spy_preprocess(monkeypatch, result=True)
+    engine = FakeEngine()
+    use_engine(engine)
+    res = client.post("/api/jobs", files={"file": ("vals.pdf", make_pdf(2), "application/pdf")})
+    assert _wait(client, res.json()["id"])["status"] == "done"
+    assert calls == []
+    assert [p.name for p in engine.seen] == ["page_01.png", "page_02.png"]
+
+
+def test_si_el_preprocesado_falla_sigue_con_la_original(client, use_engine, monkeypatch, caplog):
+    _spy_preprocess(monkeypatch, fail=True)
+    engine = FakeEngine()
+    use_engine(engine)
+    res = client.post("/api/jobs", files={"file": ("foto.png", make_png(), "image/png")})
+    job = _wait(client, res.json()["id"])
+    assert job["status"] == "done", job
+    assert engine.seen[0].name == "upload.png"
+    assert "falló el preprocesado" in caplog.text
+
+
+def test_mensaje_enderezando_la_foto(client, use_engine, monkeypatch):
+    import app.jobs as jobs_module
+
+    seen_messages: list[str] = []
+    manager = use_engine(FakeEngine())
+
+    def fake(src: Path, dst: Path, **kwargs) -> bool:
+        seen_messages.extend(j.message for j in manager._jobs.values())
+        return False
+
+    monkeypatch.setattr(jobs_module, "preprocess_file", fake)
+    res = client.post("/api/jobs", files={"file": ("foto.png", make_png(), "image/png")})
+    _wait(client, res.json()["id"])
+    assert seen_messages == ["Enderezando la foto"]

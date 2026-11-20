@@ -20,8 +20,10 @@ py -3.12 -m venv .venv
 | `app/upload_limit.py` | Middleware que corta `POST /api/jobs` apenas pasa los 20 MB (por `Content-Length` o contando bytes) |
 | `app/pages.py` | Valida el tipo (nombre/content-type y primeros bytes: `%PDF`, PNG, JPEG, WEBP) y convierte PDF a PNG en gris a 300 ppp (PyMuPDF), bajando los ppp si la página es tan grande que el lado mayor pasaría de 5000 px (`PDF_MAX_SIDE_PX`). Máximo 10 páginas. Rechaza PDF dañados o con contraseña. Las imágenes se revisan leyendo solo el encabezado (PNG, JPEG, WEBP), sin decodificarlas: más de 60 megapíxeles (`MAX_IMAGE_PIXELS`) o tamaño ilegible es error. Ver "Tope de píxeles" |
 | `app/omr/base.py` | Interfaz `OmrEngine.recognize(image_path, work_dir) -> str` y `OmrError` |
-| `app/omr/oemer_engine.py` | Corre el comando `oemer <img> -o <dir>` y lee el `.musicxml` que deja. La salida de oemer va al log, no al usuario |
-| `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados a la hora. Un trabajo nuevo arranca con el mensaje "En la fila, esperando turno…" |
+| `app/omr/oemer_engine.py` | Corre `python -m app.omr.oemer_runner <img> -o <dir>` con el mismo Python del backend (`sys.executable`), con `cwd` en `backend/` y `backend/` al principio de `PYTHONPATH`, y lee el `.musicxml` que deja. La salida de oemer va al log, no al usuario. Si el runner avisa que no pudo aplicar el parche, lo deja en el log como advertencia |
+| `app/omr/oemer_runner.py` | Aplica en memoria la corrección de `Measure.has_key` de oemer (ver "Parche de oemer (E1-18)") y llama a `oemer.ete.main()`, que lee los mismos argumentos que el comando `oemer`. No toca `site-packages` |
+| `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados a la hora. Un trabajo nuevo arranca con el mensaje "En la fila, esperando turno…". Si se subió una imagen (foto), antes del OMR la pasa por `preprocess_file` con el mensaje "Enderezando la foto" y le da al motor `photo_preprocessed.png`; si no encontró hoja o el preprocesado falla, sigue con la imagen original y lo deja en el log. Las páginas que vienen de un PDF no se preprocesan |
+| `app/preprocess.py` | Se usa solo con fotos subidas (ver `jobs.py`). Prepara una foto para el OMR: busca la hoja (zona clara respecto del fondo y de lo que la rodea, que deja afuera anillado y teclado), corrige la perspectiva, recorta un 1,5 % de borde, normaliza la luz dividiendo por el fondo (sin binarizar, para no perder líneas finas) y la lleva a ~3,7 MP. Si no encuentra una hoja clara (escaneo, sin contraste), devuelve la imagen original sin tocar |
 | `app/merge.py` | Une el MusicXML de las páginas con music21 y renumera los compases siempre, aunque sea una sola página (oemer repite números). Saca el título y el compositor inventados (ver abajo). Si una página tiene otra cantidad de pentagramas que la primera, la saltea y deja un aviso en `warnings`. Exporta sin `makeNotation`: si no, music21 "arregla" los compases que no cierran (oemer deja muchos), mueve notas entre compases y agrega compases vacíos |
 
 ### Título y compositor
@@ -113,6 +115,28 @@ Se comparó compás por compás (altura + duración, alineación óptima) contra
 - Avisos que se pueden ignorar en el log: `InconsistentVersionWarning` de scikit-learn (oemer trae modelos
   guardados con 1.2.0) y `RuntimeWarning: overflow` en `build_system.py`.
 
+### Preprocesado de fotos
+
+Las fotos de celular traen fondo (mesa, teclado, anillado), perspectiva y luz despareja. oemer las endereza un poco,
+pero con las fotos de Benjamin se caía (E1-18) o leía mal. `preprocess.py` recorta la hoja, corrige la perspectiva y
+normaliza la luz antes de pasársela a oemer. Solo se aplica a imágenes subidas: un PDF ya viene derecho y limpio, y
+el preprocesado no le agregaría nada (y podría recortar mal una página con mucho blanco). Si no encuentra una hoja
+clara, o falla por cualquier motivo, se usa la imagen original: nunca corta la lectura.
+
+### Parche de oemer (E1-18)
+
+oemer 0.1.8 tiene un bug en `build_system.Measure.has_key()`: toma los símbolos donde debería estar la armadura y
+hace `all(isinstance(s, Sfn) for s in syms)`. Si el compás tiene menos símbolos que pentagramas, la lista queda vacía,
+`all([])` da `True`, oemer cree que hay armadura y `get_key()` hace `sfns_cands[0]` con una lista vacía:
+`IndexError` y se pierde la lectura de toda la página. Pasaba con fotos reales.
+
+La corrección (en `app/omr/oemer_runner.py`) exige que haya exactamente tantos símbolos como pentagramas y que todos
+sean alteraciones. Se aplica **en memoria** en el proceso que corre oemer (no se modifica `site-packages`, así que un
+`pip install` no la pisa ni hace falta un fork). Antes de aplicarla, el runner revisa que existan
+`Measure.has_key`, `get_total_track_nums` y `Sfn`; si oemer cambió y no están, corre sin el parche y escribe
+`PARCHE_OEMER_NO_APLICADO: …` en stderr, que `OemerEngine` pasa al log como advertencia. Si se actualiza oemer,
+revisar si el bug sigue y si el parche todavía hace falta.
+
 ## Cambiar de motor
 
 Crear otra clase con `name` y `recognize(...)` en `app/omr/` y cambiarla en `main.py`. Candidatos: homr (mejor en algunos casos, se instala desde git) y Audiveris (Java 17+, el más maduro).
@@ -129,6 +153,8 @@ Crear otra clase con `name` y `recognize(...)` en `app/omr/` y cambiarla en `mai
 | --- | --- |
 | `tests/helpers.py` | Genera PDF, PNG, JPEG, WEBP y MusicXML mínimos dentro de la prueba. `png_head`/`webp_head` arman solo el encabezado con el tamaño que se pida y `make_big_pdf` una página vacía enorme, para probar los topes sin archivos gigantes |
 | `tests/test_pages.py` | PDF de 1 y de varias páginas, límite de 10, PDF roto, truncado y con contraseña, detección por bytes, página enorme a menos ppp, tamaño leído del encabezado y tope de 60 MP |
-| `tests/test_jobs_api.py` | API completa con un motor falso puesto en `app.state.jobs`: estados, mensaje de espera, sufijo, 415/413/400/503/404/409, imagen gigante, errores en español |
-| `tests/test_oemer_engine.py` | `OemerEngine` con el proceso reemplazado por uno falso: lee el `.musicxml`, error de oemer y sin salida (mensaje en español, detalle al log), tiempo agotado, comando ausente |
+| `tests/test_jobs_api.py` | API completa con un motor falso puesto en `app.state.jobs`: estados, mensaje de espera, sufijo, 415/413/400/503/404/409, imagen gigante, errores en español. Que una foto pasa por el preprocesado (y el motor recibe la enderezada), que un PDF no, que si el preprocesado falla sigue con la original, y el mensaje "Enderezando la foto" |
+| `tests/test_oemer_engine.py` | `OemerEngine` con el proceso reemplazado por uno falso: arma el comando del runner (Python del venv, `cwd` y `PYTHONPATH` en `backend/`), lee el `.musicxml`, error de oemer y sin salida (mensaje en español, detalle al log), aviso de parche no aplicado, tiempo agotado, oemer no instalado |
+| `tests/test_oemer_runner.py` | El parche de `has_key` sobre un módulo falso (sin importar oemer): lista vacía da `False`, sigue detectando armaduras, y si oemer cambió no se aplica y se avisa |
+| `tests/test_preprocess.py` | Preprocesado con fotos sintéticas (hoja con pentagramas en perspectiva sobre fondo oscuro, sombra): encuentra las esquinas, recorta sin fondo, conserva las 15 líneas, saca la sombra, y devuelve la original si no hay hoja o es un escaneo |
 | `tests/test_merge.py` | Unir dos páginas de piano (2 pentagramas), el caso de distinta cantidad de pentagramas, que una página "tipo oemer" (compases que no cierran) no se reacomode, renumerar con una sola página y sacar título/compositor inventados |

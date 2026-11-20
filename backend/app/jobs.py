@@ -19,6 +19,7 @@ from pathlib import Path
 from .merge import merge_pages
 from .omr import OmrEngine, OmrError
 from .pages import SUFFIXES, InputError, kind_of_format, to_page_images
+from .preprocess import preprocess_file
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,19 @@ def _clean_filename(filename: str) -> str:
     return name[:MAX_FILENAME_CHARS] or "partitura"
 
 
+def _straighten_photo(src: Path, work_dir: Path, job_id: str) -> Path:
+    """Recorta y endereza la hoja de una foto. Si no hace falta o falla, devuelve la original."""
+    dst = work_dir / "photo_preprocessed.png"
+    try:
+        if preprocess_file(src, dst):
+            log.info("Trabajo %s: foto recortada y enderezada", job_id)
+            return dst
+        log.info("Trabajo %s: no se encontró una hoja para recortar; se usa la foto original", job_id)
+    except Exception:  # el preprocesado nunca debe cortar la lectura
+        log.exception("Trabajo %s: falló el preprocesado; se usa la foto original", job_id)
+    return src
+
+
 class JobManager:
     def __init__(self, engine: OmrEngine, workers: int = 1, max_pending: int = MAX_PENDING_JOBS):
         self.engine = engine
@@ -111,7 +125,12 @@ class JobManager:
             src = work_dir / f"upload{SUFFIXES[fmt]}"
             src.write_bytes(data)
 
-            images = to_page_images(src, kind_of_format(fmt), work_dir / "pages")
+            kind = kind_of_format(fmt)
+            images = to_page_images(src, kind, work_dir / "pages")
+            if kind == "image":
+                # Solo fotos subidas: las páginas de un PDF ya vienen derechas y limpias.
+                job.message = "Enderezando la foto"
+                images = [_straighten_photo(images[0], work_dir, job.id)]
             job.pages = len(images)
 
             pages_xml = []

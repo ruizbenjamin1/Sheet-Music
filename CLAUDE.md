@@ -26,6 +26,8 @@ Plan completo: [App de partituras para piano — Plan del proyecto](https://clau
 
 Sin definir todavía (no inventar, preguntar cuando haga falta): hosting del backend, qué LLM usar y su presupuesto, nombre de la app.
 
+Idea para el hosting (2026-11-20, sin decidir): la lectura corre en el servidor, no en la compu del usuario. Benjamin prefiere una solución general en la nube; la opción más barata para empezar es GPU por segundo de uso (Modal, RunPod, Replicate), y se decide al llegar a publicar.
+
 ## Estructura
 
 ```

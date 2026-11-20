@@ -17,6 +17,14 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-18 y parte de E1-19 — Fotos: recorte y error de oemer  (2026-11-20)
+- `backend/app/preprocess.py`: detecta la hoja, corrige perspectiva, saca fondo y sombra. Conectado en `jobs.py` solo para fotos ("Enderezando la foto").
+- Causa del error: bug de oemer en `Measure.has_key` (lista vacía). Parche en memoria en `backend/app/omr/oemer_runner.py`, sin tocar site-packages.
+- Con las 2 fotos de Benjamin: sin recorte, oemer se caía; recortadas, leen (16 compases reales → 19 y 16 leídos). Tiempo igual: ~5 min por página. Lectura real por la API OK en 297 s.
+- Siguen saliendo errores: los bordes de una cinta de color se leen como barras de compás, y quedan restos del anillado.
+- pytest 73/73.
+- E1-17 (placa de video) cancelada por pedido de Benjamin.
+
 ### E1-14 a E1-16 — Correcciones de la auditoría  (2026-11-20)
 - E1-14: se borran título y compositor inventados por oemer y music21; `ScoreView` carga con título vacío para usar el nombre del archivo.
 - E1-15: PDF con lado mayor tope de 5000 px (una A4 no cambia); imágenes de más de 60 megapíxeles se rechazan leyendo solo el encabezado.
