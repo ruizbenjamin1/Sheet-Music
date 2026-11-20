@@ -19,12 +19,15 @@ py -3.12 -m venv .venv
 | `app/main.py` | Rutas de la API (ver `docs/arquitectura.md`). Lee la subida por partes y revisa los primeros bytes |
 | `app/upload_limit.py` | Middleware que corta `POST /api/jobs` apenas pasa los 20 MB (por `Content-Length` o contando bytes) |
 | `app/pages.py` | Valida el tipo (nombre/content-type y primeros bytes: `%PDF`, PNG, JPEG, WEBP) y convierte PDF a PNG en gris a 300 ppp (PyMuPDF), bajando los ppp si la página es tan grande que el lado mayor pasaría de 5000 px (`PDF_MAX_SIDE_PX`). Máximo 10 páginas. Rechaza PDF dañados o con contraseña. Las imágenes se revisan leyendo solo el encabezado (PNG, JPEG, WEBP), sin decodificarlas: más de 60 megapíxeles (`MAX_IMAGE_PIXELS`) o tamaño ilegible es error. Ver "Tope de píxeles" |
-| `app/omr/base.py` | Interfaz `OmrEngine.recognize(image_path, work_dir) -> str` y `OmrError` |
+| `app/omr/__init__.py` | `default_engine()`: si encuentra Audiveris, `FallbackEngine(AudiverisEngine, OemerEngine)` (nombre `audiveris+oemer`); si no, solo `OemerEngine`. Lo usa `main.py`, que deja en el log qué motor quedó |
+| `app/omr/base.py` | Interfaz `OmrEngine.recognize(image_path, work_dir) -> str` y `OmrError`. Además `report_progress`/`report_warning`: el motor puede cambiar el mensaje del trabajo o agregar un aviso a `warnings`; `jobs.py` los conecta con `notifying(Notifier(...))` y dice qué se está leyendo ("esta foto", "esta página", "la página 2") |
+| `app/omr/audiveris_engine.py` | Lector principal (E1-20). Ver "Audiveris (E1-20)" |
+| `app/omr/fallback_engine.py` | `FallbackEngine(principal, respaldo)`: prueba el principal; si lanza cualquier error o devuelve un MusicXML sin ninguna nota (`has_music`), avisa y lee la misma imagen con el respaldo |
 | `app/omr/oemer_engine.py` | Corre `python -m app.omr.oemer_runner <img> -o <dir>` con el mismo Python del backend (`sys.executable`), con `cwd` en `backend/` y `backend/` al principio de `PYTHONPATH`, y lee el `.musicxml` que deja. La salida de oemer va al log, no al usuario. Si el runner avisa que no pudo aplicar el parche, lo deja en el log como advertencia |
 | `app/omr/oemer_runner.py` | Aplica en memoria la corrección de `Measure.has_key` de oemer (ver "Parche de oemer (E1-18)") y llama a `oemer.ete.main()`, que lee los mismos argumentos que el comando `oemer`. No toca `site-packages` |
 | `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados a la hora. Un trabajo nuevo arranca con el mensaje "En la fila, esperando turno…". Si se subió una imagen (foto), antes del OMR la pasa por `preprocess_file` con el mensaje "Enderezando la foto" y le da al motor `photo_preprocessed.png`; si no encontró hoja o el preprocesado falla, sigue con la imagen original y lo deja en el log. Las páginas que vienen de un PDF no se preprocesan |
 | `app/preprocess.py` | Se usa solo con fotos subidas (ver `jobs.py`). Prepara una foto para el OMR: busca la hoja (zona clara respecto del fondo y de lo que la rodea, que deja afuera anillado y teclado), corrige la perspectiva, recorta un 1,5 % de borde, normaliza la luz dividiendo por el fondo (sin binarizar, para no perder líneas finas) y la lleva a ~3,7 MP. Si no encuentra una hoja clara (escaneo, sin contraste), devuelve la imagen original sin tocar |
-| `app/merge.py` | Une el MusicXML de las páginas con music21 y renumera los compases siempre, aunque sea una sola página (oemer repite números). Saca el título y el compositor inventados (ver abajo). Si una página tiene otra cantidad de pentagramas que la primera, la saltea y deja un aviso en `warnings`. Exporta sin `makeNotation`: si no, music21 "arregla" los compases que no cierran (oemer deja muchos), mueve notas entre compases y agrega compases vacíos |
+| `app/merge.py` | Une el MusicXML de las páginas (y, con Audiveris, los movimientos de una página) con music21 y renumera los compases siempre, aunque sea una sola página (oemer repite números). Saca el título y el compositor inventados (ver abajo). Si una página tiene otra cantidad de pentagramas que la primera, la saltea y deja un aviso en `warnings`. Exporta sin `makeNotation`: si no, music21 "arregla" los compases que no cierran (oemer deja muchos), mueve notas entre compases y agrega compases vacíos |
 
 ### Título y compositor
 
@@ -167,9 +170,48 @@ foto 2), pero no encuentra las barras de compás ni arma bien la llave del piano
 distintas y junta varios compases en uno. Con imágenes limpias (lo que da un PDF) es mucho mejor y ~25 veces más rápido
 que oemer. Conclusión de E1-19: no reemplaza a oemer para fotos; para PDF sí convendría. Lo decide Benjamin.
 
+## Audiveris (E1-20): lector principal
+
+Desde E1-20 Audiveris es el lector principal y oemer queda de respaldo (Benjamin pidió que la lectura sea rápida).
+**Licencia AGPL-3.0** (igual que PyMuPDF, ver E1-13): no se instala con pip ni se sube al repo; si la app se publica
+como servicio con Audiveris, hay que publicar el código del backend o sacarlo.
+
+- **Dónde está:** variable de entorno `AUDIVERIS_EXE` con la ruta a `Audiveris.exe`. Si no está definida, se busca en
+  `%LOCALAPPDATA%\partituras-tools\audiveris\app\Audiveris\Audiveris.exe` (instalación de E1-19). Si
+  `AUDIVERIS_EXE` apunta a algo que no existe, queda en el log y se usa solo oemer. Sin Audiveris todo sigue andando
+  con oemer.
+- **Comando:** `Audiveris.exe -batch -export -output <carpeta> -- <imagen>`, con `cwd` en esa carpeta (dentro del
+  trabajo, se borra al terminar). Límite: 3 min por página (`TIMEOUT_SECONDS`); si se pasa, va al respaldo.
+- **Antes de leer** (`prepare_image`, para fotos y para páginas de PDF): gris, `normalize_light` de `preprocess.py`
+  y binarizada con Otsu. Si tiene menos de 2500 px de ancho (`MIN_WIDTH_PX`) se agranda hasta ese ancho (como mucho
+  ×3): Audiveris pide interlínea de ~20 px. Con la foto en color tal cual no encuentra los pentagramas; solo
+  normalizada la parte mucho más que binarizada.
+- **Salida:** `<nombre>.mxl` o, si partió la partitura en movimientos, `<nombre>.mvt1.mxl`, `.mvt2.mxl`… (en orden
+  numérico). Se abren los zip (`META-INF/container.xml` dice cuál es el XML) y se unen como si fueran páginas con
+  `merge_pages`. Si un movimiento tiene otra cantidad de pentagramas que la mayoría, se saltea con un aviso ("Un tramo
+  de esta foto (el 1) se leyó con 1 pentagrama en vez de 2 pentagramas; lo salteé."). Se sacan `<source>` y los
+  `miscellaneous-field source-*`, que traen la ruta de la imagen en el servidor.
+- **Errores:** código de salida distinto de 0 o sin `.mxl` (por ejemplo "No regularly spaced lines found"): al log van
+  las líneas con `Exception`/`WARN`/`ERROR` y las últimas 10; el error es "No pude leer la página…". Con el motor por
+  defecto ese error no le llega al usuario: se pasa a oemer.
+- **Respaldo:** si Audiveris falla o no encuentra notas, el trabajo muestra "La lectura rápida no funcionó con esta
+  foto; usé el lector lento, puede tardar unos minutos" y, al terminar, queda en `warnings` "La lectura rápida no
+  funcionó con esta foto; se leyó con el lector lento." (en un PDF de varias páginas dice "la página 2"). oemer recibe
+  la misma imagen que antes de E1-20 (la foto recortada o la original, no la binarizada).
+
+### Tiempos y resultados por la API (E1-20, PC de desarrollo, CPU, backend solo)
+
+| Imagen | Motor usado | Tiempo total | Resultado |
+| --- | --- | --- | --- |
+| Oda limpia (PNG, 39 notas) | Audiveris | 11 s | 8/8 compases, 2 pentagramas, 39 notas (30 + 9) |
+| Foto de Benjamin 4032×3024 sin recortar (16 compases) | Audiveris (2 movimientos unidos) | 34 s | 15 compases, 2 pentagramas |
+
+Con oemer cada una tardaba ~5 min.
+
 ## Cambiar de motor
 
-Crear otra clase con `name` y `recognize(...)` en `app/omr/` y cambiarla en `main.py`. Candidatos: homr (mejor en algunos casos, se instala desde git) y Audiveris (Java 17+, el más maduro).
+Crear otra clase con `name` y `recognize(...)` en `app/omr/` y armarla en `default_engine()` (`app/omr/__init__.py`).
+Se puede encadenar con `FallbackEngine`. Otro candidato: homr (se instala desde git).
 
 ## Reglas
 
@@ -186,6 +228,8 @@ Crear otra clase con `name` y `recognize(...)` en `app/omr/` y cambiarla en `mai
 | `tests/test_jobs_api.py` | API completa con un motor falso puesto en `app.state.jobs`: estados, mensaje de espera, sufijo, 415/413/400/503/404/409, imagen gigante, errores en español. Que una foto pasa por el preprocesado (y el motor recibe la enderezada), que un PDF no, que si el preprocesado falla sigue con la original, y el mensaje "Enderezando la foto" |
 | `tests/test_oemer_engine.py` | `OemerEngine` con el proceso reemplazado por uno falso: arma el comando del runner (Python del venv, `cwd` y `PYTHONPATH` en `backend/`), lee el `.musicxml`, error de oemer y sin salida (mensaje en español, detalle al log), aviso de parche no aplicado, tiempo agotado, oemer no instalado |
 | `tests/test_oemer_runner.py` | El parche de `has_key` sobre un módulo falso (sin importar oemer): lista vacía da `False`, sigue detectando armaduras, y si oemer cambió no se aplica y se avisa |
+| `tests/test_audiveris_engine.py` | `AudiverisEngine` con el proceso reemplazado por uno falso que deja `.mxl` generados en la prueba: comando y timeout, imagen preparada (gris, binarizada, agrandada a 2500 px; las anchas no), unión de movimientos en orden numérico, movimiento con otros pentagramas salteado con aviso, que se borre la ruta de la imagen, errores en español (con el detalle en el log), tiempo agotado, ejecutable que no arranca, imagen ilegible, `AUDIVERIS_EXE` y ruta por defecto |
+| `tests/test_fallback_engine.py` | `FallbackEngine` con motores falsos: no usa el respaldo si el principal anda; lo usa (y avisa) si falla, da un error inesperado o devuelve algo sin notas; error del respaldo; sin Audiveris queda solo oemer; por la API el aviso llega a `warnings` ("esta foto", "la página 2") |
 | `tests/test_preprocess.py` | Preprocesado con fotos sintéticas (hoja con pentagramas en perspectiva sobre fondo oscuro, sombra): encuentra las esquinas, recorta sin fondo, conserva las 15 líneas, saca la sombra, y devuelve la original si no hay hoja o es un escaneo |
 | `tests/test_merge.py` | Unir dos páginas de piano (2 pentagramas), el caso de distinta cantidad de pentagramas, que una página "tipo oemer" (compases que no cierran) no se reacomode, renumerar con una sola página y sacar título/compositor inventados |
 

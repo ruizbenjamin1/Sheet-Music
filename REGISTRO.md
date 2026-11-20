@@ -17,6 +17,12 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-20 — Audiveris como lector principal  (2026-11-20)
+- `AudiverisEngine` (gris, luz normalizada, binarizado, ancho mínimo 2500 px; une los movimientos) y `FallbackEngine` (si Audiveris falla, oemer, con aviso al usuario). Motor por defecto: `audiveris+oemer`; sin Audiveris instalado, solo oemer.
+- Real por la API: Oda limpia 11 s, 8/8 compases y notas correctas; foto de Benjamin en resolución completa 34 s, 15 de 16 compases. Antes ~5 min cada una.
+- pytest 99/99. Falta probar el respaldo real y la precisión nota por nota de la foto.
+- Una foto de WhatsApp (baja resolución) no le sirve a Audiveris: cae a oemer.
+
 ### E1-19 (parte) — Audiveris comparado  (2026-11-20)
 - Audiveris 5.11.0 (AGPL-3.0, trae su Java) en `%LOCALAPPDATA%\partituras-tools\audiveris\`, sin instalar nada en el sistema.
 - ~10 s por página contra ~5 min de oemer. Oda limpia 100 % (oemer 54 %), Oda tipo foto 87 % (oemer 77 %). Con las fotos de WhatsApp de Benjamin desarma la partitura (resolución baja: interlínea 7–8 px).

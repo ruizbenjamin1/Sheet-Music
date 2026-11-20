@@ -7,7 +7,9 @@ def test_health():
     client = TestClient(app)
     res = client.get("/api/health")
     assert res.status_code == 200
-    assert res.json() == {"ok": True, "engine": "oemer"}
+    # Depende de si Audiveris está instalado en esta compu (ver app.omr.default_engine).
+    assert res.json() == {"ok": True, "engine": app.state.jobs.engine.name}
+    assert app.state.jobs.engine.name in ("oemer", "audiveris+oemer")
 
 
 def test_rejects_unsupported_file():

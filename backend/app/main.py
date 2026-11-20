@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from .jobs import JobManager, QueueFullError
-from .omr import OemerEngine
+from .omr import default_engine
 from .pages import InputError, check_upload, kind_of
 from .upload_limit import UploadLimitMiddleware
 
@@ -47,7 +47,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.state.jobs = JobManager(OemerEngine())
+# Audiveris (rápido) con oemer de respaldo; si Audiveris no está instalado, solo oemer.
+app.state.jobs = JobManager(default_engine())
+logging.getLogger(__name__).info("Motor de lectura: %s", app.state.jobs.engine.name)
 
 
 @app.exception_handler(RequestValidationError)

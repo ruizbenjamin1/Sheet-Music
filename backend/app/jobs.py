@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .merge import merge_pages
 from .omr import OmrEngine, OmrError
+from .omr.base import Notifier, notifying
 from .pages import SUFFIXES, InputError, kind_of_format, to_page_images
 from .preprocess import preprocess_file
 
@@ -151,13 +152,16 @@ class JobManager:
             job.pages = len(images)
 
             pages_xml = []
+            engine_warnings: list[str] = []
             for i, image in enumerate(images, start=1):
                 job.page = i
                 job.message = f"Leyendo página {i} de {len(images)}"
-                pages_xml.append(self.engine.recognize(image, work_dir))
+                with notifying(self._notifier(job, kind, i, len(images), engine_warnings)):
+                    pages_xml.append(self.engine.recognize(image, work_dir))
 
             job.message = "Armando la partitura"
-            job.musicxml, job.warnings = merge_pages(pages_xml)
+            job.musicxml, merge_warnings = merge_pages(pages_xml)
+            job.warnings = engine_warnings + merge_warnings
             job.status, job.message = "done", "Listo"
         except (InputError, OmrError) as exc:
             log.info("Trabajo %s falló: %s", job.id, exc)
@@ -168,6 +172,25 @@ class JobManager:
         finally:
             job.finished_at = time.time()
             shutil.rmtree(work_dir, ignore_errors=True)
+
+    @staticmethod
+    def _notifier(job: Job, kind: str, page: int, pages: int, warnings: list[str]) -> Notifier:
+        """Conecta los avisos del motor (ver `omr/base.py`) con el trabajo."""
+        if kind == "image":
+            subject = "esta foto"
+        elif pages == 1:
+            subject = "esta página"
+        else:
+            subject = f"la página {page}"
+
+        def progress(text: str) -> None:
+            job.message = text
+
+        def warning(text: str) -> None:
+            if text not in warnings:
+                warnings.append(text)
+
+        return Notifier(progress=progress, warning=warning, subject=subject)
 
     def _cleanup(self) -> None:
         now = time.time()

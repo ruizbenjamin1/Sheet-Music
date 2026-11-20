@@ -9,7 +9,7 @@ Toda etapa termina con dos tareas `[test]`: **pruebas** y **auditoría** (ver `d
 | Etapa | Nombre | Tareas | Hechas | Estado |
 | --- | --- | --- | --- | --- |
 | 0 | Base del proyecto | 10 | 10 | Cerrada |
-| 1 | MVP: subir, leer, ver y tocar | 19 | 15 | En curso |
+| 1 | MVP: subir, leer, ver y tocar | 20 | 17 | Falta la prueba de Benjamin |
 | 2 | Aprender | — | — | Pendiente |
 | 3 | Corregir | — | — | Pendiente |
 | 4 | Practicar (MIDI) | — | — | Pendiente |
@@ -57,8 +57,9 @@ Nota: en el backend ya hay un borrador de E1-02 a E1-05 (`backend/app/pages.py`,
 - [x] **E1-15** `[omr]` Corrección de auditoría: poner un tope de píxeles a las páginas de PDF y a las imágenes (una página enorme puede ocupar GB de memoria).
 - [x] **E1-16** `[omr]` Corrección de auditoría: renumerar compases también con una sola página, y que el mensaje de cola sea "En la fila, esperando turno…".
 - [x] **E1-17** `[omr]` ~~Lectura más rápida con la placa de video.~~ Cancelada: Benjamin quiere una solución que no dependa de la placa de nadie. Dato para el futuro: onnxruntime-gpu 1.27 pide CUDA 13 (~1,2 GB de librerías por pip).
-- [ ] **E1-19** `[omr]` (recorte de fotos hecho y conectado; falta comparar Audiveris y homr, espera el OK de Benjamin para bajarlos) Comparar lectores en CPU con las fotos de Benjamin y la Oda generada: oemer, Audiveris y homr. Tiempo por página y precisión, con y sin recortar y enderezar la hoja antes de leer.
+- [x] **E1-19** `[omr]` (recorte de fotos hecho y conectado; falta comparar Audiveris y homr, espera el OK de Benjamin para bajarlos) Comparar lectores en CPU con las fotos de Benjamin y la Oda generada: oemer, Audiveris y homr. Tiempo por página y precisión, con y sin recortar y enderezar la hoja antes de leer.
 - [x] **E1-18** `[omr]` La primera foto de Benjamin (WhatsApp) hizo fallar a oemer al leer la armadura (`IndexError` en `get_key`). Reproducir con sus fotos de `muestras/` y ver si se puede evitar.
+- [x] **E1-20** `[omr]` Lectura rápida: Audiveris 5.11.0 pasa a ser el lector principal y oemer queda de respaldo (`AudiverisEngine` + `FallbackEngine`, ruta en `AUDIVERIS_EXE`). Antes de leer: gris, luz normalizada, binarizada y ancho mínimo de 2500 px. Une los movimientos que arma Audiveris. **Licencia de Audiveris: AGPL-3.0** (como PyMuPDF en E1-13): no va en `requirements.txt` ni en el repo, pero si la app se publica como servicio con Audiveris obliga a compartir el código del backend; entra en la misma decisión de E1-13.
 - [ ] **E1-13** `[yo]` Benjamin decide qué hacer con PyMuPDF, que tiene licencia AGPL: si la app se publica como servicio, obliga a compartir el código del backend. Opciones: publicar el código, o cambiarlo por pypdfium2 (Apache/BSD). Se puede decidir hasta antes de publicar.
 - [ ] **E1-10** `[test]` Medir la precisión de oemer con las muestras de E1-01 (notas bien leídas sobre el total, a ojo por compás). Si es mala, proponer probar homr.
 - [x] **E1-11** `[test]` Pruebas de la etapa (automáticas + prueba manual completa: subir, leer, ver, tocar).

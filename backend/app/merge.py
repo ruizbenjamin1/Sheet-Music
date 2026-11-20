@@ -38,13 +38,17 @@ def _drop_invented_metadata(xml: str) -> str:
     return XML_DECLARATION + ET.tostring(root, encoding="unicode")
 
 
-def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
+SKIPPED_PAGE = "La página {n} se leyó con {got} en vez de {want}; la salteé."
+
+
+def merge_pages(pages_xml: list[str], skipped_message: str = SKIPPED_PAGE) -> tuple[str, list[str]]:
     """Devuelve (musicxml, avisos).
 
     Siempre renumera los compases (oemer repite números, aun en una sola página) y saca
     el título y compositor inventados. Si una página se leyó con otra cantidad de
     pentagramas que la primera, se saltea y se avisa (no se puede saber a qué pentagrama
-    corresponde cada uno).
+    corresponde cada uno). `skipped_message` es el texto de ese aviso, con `{n}` (número de
+    página), `{got}` y `{want}` (cantidad de pentagramas).
     """
     if not pages_xml:
         raise ValueError("merge_pages necesita al menos una página")
@@ -58,8 +62,7 @@ def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
         parts = list(score.parts)
         if len(parts) != len(base_parts):
             warnings.append(
-                f"La página {page_no} se leyó con {_staves(len(parts))} en vez de {_staves(len(base_parts))}; "
-                "la salteé."
+                skipped_message.format(n=page_no, got=_staves(len(parts)), want=_staves(len(base_parts)))
             )
             continue
         for target, part in zip(base_parts, parts):
