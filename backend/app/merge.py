@@ -44,5 +44,9 @@ def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
         for number, measure in enumerate(part.getElementsByClass(stream.Measure), start=1):
             measure.number = number
 
-    xml_bytes = GeneralObjectExporter(base).parse()
+    # Sin makeNotation: si no, music21 "arregla" los compases que no cierran (oemer deja muchos),
+    # mueve notas de un compás a otro y agrega compases vacíos. Hay que respetar lo que leyó el motor.
+    exporter = GeneralObjectExporter(base)
+    exporter.makeNotation = False
+    xml_bytes = exporter.parse()
     return xml_bytes.decode("utf-8"), warnings

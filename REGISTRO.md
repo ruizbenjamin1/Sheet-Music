@@ -17,6 +17,15 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-03 — oemer funcionando  (2026-11-20)
+- Probado con la Oda a la alegría rasterizada (limpia y "tipo foto") y un PDF de 2 páginas por la API. Sin muestras reales todavía.
+- Modelos: 218 MB, se bajan la primera vez (~20 s) dentro del paquete en el venv.
+- Tiempo: ~5 min por página en CPU; PDF de 2 páginas ~10 min.
+- Precisión: 54 % (limpia), 77 % (tipo foto), 65 % el PDF unido. Falla sobre todo con redondas en clave de fa.
+- Fijados `onnxruntime`/`onnxruntime-gpu` 1.27.0 (1.28+ rechaza el modelo) y `opencv-python-headless` 4.x (OpenCV 5 rompe oemer).
+- Arreglo en `merge.py`: music21 reacomodaba compases incompletos (salían 17 en vez de 16). 43 pruebas OK.
+- Pendientes: 5 min por página es mucho (la GPU no se usa, falta CUDA); descarga de modelos cortada deja oemer roto.
+
 ### E1-09 — PWA  (2026-11-20)
 - Íconos PNG 192, 512, maskable 512 y apple-touch-icon 180 en `frontend/public/`. Precaché de 14 entradas (incluye OSMD, Tone y el ejemplo). Samples del piano con CacheFirst en la caché `piano-samples`.
 - Probado con build + preview en Chromium: instalable sin errores, y sin conexión abre, dibuja y toca el ejemplo (si antes se tocó con conexión).

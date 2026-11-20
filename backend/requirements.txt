@@ -4,3 +4,11 @@ python-multipart==0.0.34
 pymupdf==2.1
 oemer==0.1.8
 music21==10.5.2
+# Fijados por oemer 0.1.8 (ver docs/omr.md, sección oemer):
+# - onnxruntime 1.28 o más nuevo rechaza su modelo ("pads must not contain negative values").
+# - pymupdf 2.x pide onnxruntime y oemer pide onnxruntime-gpu: los dos escriben la misma
+#   carpeta, así que van en la MISMA versión. Ninguno de los dos se desinstala por separado.
+# - OpenCV 5 cambió la forma de HoughLinesP y oemer se rompe (IndexError): queda en 4.x.
+onnxruntime==1.27.0  # MIT
+onnxruntime-gpu==1.27.0  # MIT
+opencv-python-headless==4.14.0.94  # Apache 2.0

@@ -2,7 +2,7 @@
 
 Se corre como proceso aparte con su comando `oemer`, que deja un archivo
 .musicxml en la carpeta de salida. La primera vez descarga sus modelos
-(unos cientos de MB), así que esa primera lectura tarda más.
+(unos 218 MB), así que esa primera lectura tarda más.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from .base import OmrError
 
 log = logging.getLogger(__name__)
 
-# Una página en CPU suele tardar entre 1 y 3 minutos; dejamos margen.
+# Una página en CPU tardó unos 5 minutos en la PC de desarrollo (E1-03); dejamos margen.
 TIMEOUT_SECONDS = 15 * 60
 
 

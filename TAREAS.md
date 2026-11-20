@@ -9,7 +9,7 @@ Toda etapa termina con dos tareas `[test]`: **pruebas** y **auditoría** (ver `d
 | Etapa | Nombre | Tareas | Hechas | Estado |
 | --- | --- | --- | --- | --- |
 | 0 | Base del proyecto | 10 | 10 | Cerrada |
-| 1 | MVP: subir, leer, ver y tocar | 13 | 7 | En curso |
+| 1 | MVP: subir, leer, ver y tocar | 13 | 8 | En curso |
 | 2 | Aprender | — | — | Pendiente |
 | 3 | Corregir | — | — | Pendiente |
 | 4 | Practicar (MIDI) | — | — | Pendiente |
@@ -46,7 +46,7 @@ Nota: en el backend ya hay un borrador de E1-02 a E1-05 (`backend/app/pages.py`,
 
 - [ ] **E1-01** `[yo]` Benjamin junta 3 o 4 partituras impresas propias para probar (al menos un PDF de varias páginas y una foto de celular) y las pone en `muestras/`. No se suben a git.
 - [x] **E1-02** `[omr]` PDF o imagen a páginas (`pages.py`): pruebas con un PDF de 1 y de varias páginas, límite de páginas y archivos rotos.
-- [ ] **E1-03** `[omr]` Motor oemer detrás de `OmrEngine`: correrlo con una muestra, confirmar la descarga de modelos la primera vez y medir cuánto tarda por página. Revisar que no choquen `onnxruntime` y `onnxruntime-gpu`.
+- [x] **E1-03** `[omr]` Motor oemer detrás de `OmrEngine`: correrlo con una muestra, confirmar la descarga de modelos la primera vez y medir cuánto tarda por página. Revisar que no choquen `onnxruntime` y `onnxruntime-gpu`.
 - [x] **E1-04** `[omr]` Trabajos en segundo plano y API (`POST /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/musicxml`): pruebas con un motor falso, errores claros en español. Incluye lo que encontró la auditoría de la Etapa 0: sufijo del archivo temporal fijo según el tipo (no el nombre que manda el usuario), revisar los primeros bytes para confirmar PDF o imagen, no mostrar errores técnicos en inglés, límite de trabajos en cola, cortar la subida al pasar los 20 MB, y pasar la señal de cancelación a `fetch` en `api.ts`.
 - [x] **E1-05** `[omr]` Unir páginas en una sola partitura (`merge.py`): pruebas con dos páginas de ejemplo.
 - [x] **E1-06** `[ui]` Pantalla de subida: elegir PDF o imagen, sacar foto con el celular, abrir un MusicXML directo, botón "Probar con un ejemplo" (`public/samples/oda-a-la-alegria.musicxml`), barra de progreso con el mensaje del backend.
