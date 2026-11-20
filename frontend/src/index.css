@@ -285,6 +285,18 @@ h1 {
   color: inherit;
 }
 
+/* Diagnóstico de audio (solo en desarrollo) */
+.player-debug {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border: 1px dashed var(--muted);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 480px) {
   .player-controls .btn {
     flex: 1 1 0;

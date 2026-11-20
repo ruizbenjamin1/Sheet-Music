@@ -18,6 +18,7 @@ npm run lint     # oxlint
 - `src/components/ScoreView.tsx`: dibuja un MusicXML con OSMD y expone la instancia (ver abajo). Se carga con `React.lazy` para no bajar OSMD hasta que hace falta.
 - `src/components/Player.tsx`: reproductor (reproducir / pausa / detener / velocidad) con el cursor de OSMD. Detalle en `docs/audio.md`.
 - `src/lib/playback.ts`: saca las notas de la partitura con el cursor de OSMD y arma la lista de samples del piano.
+- `src/lib/audioUnlock.ts`: en iPhone / iPad, hace que el audio suene aunque el teléfono esté en silencio (ver `docs/audio.md`).
 - `src/lib/api.ts`: cliente del backend. `readScore(file, onProgress, signal)` sube, sondea cada 1,5 s y devuelve `{ musicxml, warnings }`. La señal se pasa a cada `fetch` y corta también la espera; al cancelar rechaza con un `DOMException` `AbortError` (el trabajo sigue en el backend hasta vencer).
 - `public/samples/`: partituras de ejemplo **de dominio público** para probar sin backend.
 - `vite.config.ts`: proxy `/api` y configuración de la PWA.

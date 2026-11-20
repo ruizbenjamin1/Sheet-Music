@@ -17,6 +17,11 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-21 — Sonido en el celular  (2026-11-20)
+- `frontend/src/lib/audioUnlock.ts`: en iPhone/iPad, sesión de audio en "playback" y audio de silencio en el primer toque. `Player.tsx` arranca el audio dentro del toque, avisa si no se activa y retoma si iOS lo interrumpe. Línea `[dev]` de diagnóstico solo en desarrollo.
+- Probado en Chromium simulando iPhone; falta el iPhone real.
+- Además: la foto ya no se achica antes de leer (Audiveris confundía los pentagramas del piano con dos instrumentos).
+
 ### E1-20 — Audiveris como lector principal  (2026-11-20)
 - `AudiverisEngine` (gris, luz normalizada, binarizado, ancho mínimo 2500 px; une los movimientos) y `FallbackEngine` (si Audiveris falla, oemer, con aviso al usuario). Motor por defecto: `audiveris+oemer`; sin Audiveris instalado, solo oemer.
 - Real por la API: Oda limpia 11 s, 8/8 compases y notas correctas; foto de Benjamin en resolución completa 34 s, 15 de 16 compases. Antes ~5 min cada una.
