@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import struct
+import zlib
+
 import pymupdf as fitz
 
 
@@ -27,8 +30,35 @@ def make_jpeg() -> bytes:
     return pix.tobytes("jpeg")
 
 
-# WEBP mínimo: solo importa la cabecera para la detección del tipo.
-WEBP_HEAD = b"RIFF\x24\x00\x00\x00WEBPVP8 " + b"\x00" * 24
+def webp_head(width: int = 8, height: int = 8) -> bytes:
+    """Encabezado WEBP (VP8 con pérdida) con el tamaño pedido. No trae imagen de verdad."""
+    frame = bytes(3) + bytes([0x9D, 0x01, 0x2A]) + struct.pack("<HH", width, height)
+    chunk = b"VP8 " + struct.pack("<I", len(frame) + 16) + frame + bytes(16)
+    return b"RIFF" + struct.pack("<I", len(chunk) + 4) + b"WEBP" + chunk
+
+
+WEBP_HEAD = webp_head()
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def png_head(width: int, height: int) -> bytes:
+    """PNG con un encabezado (IHDR) que dice `width` x `height`, sin la imagen.
+
+    Sirve para probar el tope de píxeles sin generar un archivo gigante.
+    """
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
+    crc = struct.pack(">I", zlib.crc32(b"IHDR" + ihdr))
+    return PNG_SIGNATURE + struct.pack(">I", len(ihdr)) + b"IHDR" + ihdr + crc
+
+
+def make_big_pdf(width_pt: float, height_pt: float) -> bytes:
+    """PDF de una página vacía de tamaño enorme (pesa poco: no tiene contenido)."""
+    doc = fitz.open()
+    doc.new_page(width=width_pt, height=height_pt)
+    data = doc.tobytes()
+    doc.close()
+    return data
 
 
 def page_xml(staves: int, measures: int, step: str = "C") -> str:

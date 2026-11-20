@@ -10,7 +10,7 @@ Navegador (PWA, React)                         Backend (FastAPI, Python)
 └────────────────────────────┘                    └──────────────────────────────┘
 ```
 
-El formato central es **MusicXML**. El backend solo convierte la entrada en MusicXML. Ver, tocar, teclado, práctica y demás pasa en el navegador.
+El formato central es **MusicXML**. El backend solo convierte la entrada en MusicXML. El MusicXML que devuelve no trae título (el OMR no lo lee); el frontend muestra el nombre del archivo. Ver, tocar, teclado, práctica y demás pasa en el navegador.
 
 ## Contrato de la API
 
@@ -23,7 +23,7 @@ Todas las rutas empiezan con `/api`. Los errores vienen como `{"detail": "<mensa
 | `GET /api/jobs/{id}` | Estado del trabajo | el trabajo |
 | `GET /api/jobs/{id}/musicxml` | Resultado | MusicXML (`409` si no está listo) |
 
-Trabajo:
+Trabajo (recién creado viene con `status: "queued"` y `message: "En la fila, esperando turno…"`):
 
 ```json
 {
@@ -46,7 +46,7 @@ Errores:
 | `404` | Trabajo inexistente o vencido (se borran a la hora) |
 | `409` | `GET …/musicxml` cuando el trabajo todavía no terminó o terminó con error |
 
-Los errores al leer (PDF dañado o con contraseña, más de 10 páginas, el motor no pudo leer) no son códigos HTTP: el trabajo queda en `status: "error"` con el mensaje en `error`. Los mensajes siempre son en español; el detalle técnico queda solo en el log del backend.
+Los errores al leer (PDF dañado o con contraseña, más de 10 páginas, imagen de más de 60 megapíxeles o con encabezado ilegible, el motor no pudo leer) no son códigos HTTP: el trabajo queda en `status: "error"` con el mensaje en `error`. Los mensajes siempre son en español; el detalle técnico queda solo en el log del backend.
 
 ## Desarrollo
 

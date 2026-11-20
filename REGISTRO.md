@@ -17,6 +17,23 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-14 a E1-16 — Correcciones de la auditoría  (2026-11-20)
+- E1-14: se borran título y compositor inventados por oemer y music21; `ScoreView` carga con título vacío para usar el nombre del archivo.
+- E1-15: PDF con lado mayor tope de 5000 px (una A4 no cambia); imágenes de más de 60 megapíxeles se rechazan leyendo solo el encabezado.
+- E1-16: compases renumerados siempre; mensaje inicial "En la fila, esperando turno…".
+- pytest 56/56, lint y build OK.
+- Verificado con una lectura real por la API (backend reiniciado): el MusicXML sale sin título ni compositor inventados y con compases 1 a 8. Nota: `--reload` no tomó los cambios; hay que reiniciar el backend a mano (anotado en README).
+
+### E1-12 — Auditoría de la Etapa 1  (2026-11-20)
+- Aprobada con observaciones, sin bloqueantes. A corregir: título "Upload"/"Transcribed by Oemer" (→ E1-14) y sin tope de píxeles (→ E1-15). Sugerencias: renumerar con una página y mensaje de cola (→ E1-16); cancelar no frena el trabajo en el backend (queda para más adelante: `DELETE /api/jobs/{id}`).
+- Revisado y bien: corte de subida, concurrencia y limpieza de trabajos, liberación del reproductor, caché de la PWA, sin contenido con copyright, docs al día.
+
+### E1-11 — Pruebas de la Etapa 1  (2026-11-20)
+- pytest 43/43, lint y build OK, npm audit sin altas. Ejemplo: se dibuja, suena, pausa, sigue, detiene. 360 px oscuro OK.
+- Errores de subida en español (400, 413, 415, 404); CORS cerrado a orígenes ajenos.
+- Lectura real de la imagen generada: 308 s, OSMD la dibuja y se toca. Unión de 3 páginas: se dibuja y se toca entera.
+- Falta la prueba con partituras reales de Benjamin (E1-01, E1-10).
+
 ### E1-03 — oemer funcionando  (2026-11-20)
 - Probado con la Oda a la alegría rasterizada (limpia y "tipo foto") y un PDF de 2 páginas por la API. Sin muestras reales todavía.
 - Modelos: 218 MB, se bajan la primera vez (~20 s) dentro del paquete en el venv.

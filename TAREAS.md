@@ -9,7 +9,7 @@ Toda etapa termina con dos tareas `[test]`: **pruebas** y **auditoría** (ver `d
 | Etapa | Nombre | Tareas | Hechas | Estado |
 | --- | --- | --- | --- | --- |
 | 0 | Base del proyecto | 10 | 10 | Cerrada |
-| 1 | MVP: subir, leer, ver y tocar | 13 | 8 | En curso |
+| 1 | MVP: subir, leer, ver y tocar | 16 | 13 | Falta la prueba de Benjamin |
 | 2 | Aprender | — | — | Pendiente |
 | 3 | Corregir | — | — | Pendiente |
 | 4 | Practicar (MIDI) | — | — | Pendiente |
@@ -53,10 +53,13 @@ Nota: en el backend ya hay un borrador de E1-02 a E1-05 (`backend/app/pages.py`,
 - [x] **E1-07** `[ui]` Mostrar la partitura con OSMD, que se adapte al ancho de pantalla.
 - [x] **E1-08** `[audio]` Tocar la partitura: Tone.js con samples de piano, cursor de OSMD sincronizado, botones reproducir / pausa / detener y control de velocidad.
 - [x] **E1-09** `[ui]` PWA: íconos PNG 192 y 512, caché de los samples para usar sin conexión, comprobar que se puede instalar.
+- [x] **E1-14** `[omr]` Corrección de auditoría: el título que se ve es "Upload" o "Page_01" y el compositor "Transcribed by Oemer"; sacar esos datos que inventa oemer para que la app use el nombre del archivo.
+- [x] **E1-15** `[omr]` Corrección de auditoría: poner un tope de píxeles a las páginas de PDF y a las imágenes (una página enorme puede ocupar GB de memoria).
+- [x] **E1-16** `[omr]` Corrección de auditoría: renumerar compases también con una sola página, y que el mensaje de cola sea "En la fila, esperando turno…".
 - [ ] **E1-13** `[yo]` Benjamin decide qué hacer con PyMuPDF, que tiene licencia AGPL: si la app se publica como servicio, obliga a compartir el código del backend. Opciones: publicar el código, o cambiarlo por pypdfium2 (Apache/BSD). Se puede decidir hasta antes de publicar.
 - [ ] **E1-10** `[test]` Medir la precisión de oemer con las muestras de E1-01 (notas bien leídas sobre el total, a ojo por compás). Si es mala, proponer probar homr.
-- [ ] **E1-11** `[test]` Pruebas de la etapa (automáticas + prueba manual completa: subir, leer, ver, tocar).
-- [ ] **E1-12** `[test]` Auditoría de la etapa.
+- [x] **E1-11** `[test]` Pruebas de la etapa (automáticas + prueba manual completa: subir, leer, ver, tocar).
+- [x] **E1-12** `[test]` Auditoría de la etapa.
 
 ## Etapa 2 — Aprender
 Teclado animado con un color por mano, nombres de notas, manos separadas, tempo ajustable.

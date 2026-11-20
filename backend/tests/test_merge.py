@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from music21 import converter, stream
 
@@ -9,9 +11,53 @@ def _staves(score):
     return list(score.parts)
 
 
-def test_una_sola_pagina_queda_igual():
-    xml = page_xml(staves=2, measures=3)
-    assert merge_pages([xml]) == (xml, [])
+def _with_oemer_metadata(xml: str, title: str) -> str:
+    # Así escribe oemer 0.1.8 el título (nombre de la imagen) y el "compositor".
+    return xml.replace(
+        "<part-list>",
+        f"<work><work-title>{title}</work-title></work>"
+        '<identification><creator type="composer">Transcribed by Oemer</creator></identification>'
+        "<part-list>",
+    )
+
+
+def _repeat_measure_numbers(xml: str) -> str:
+    # oemer repite números de compás: todos quedan como "1".
+    return re.sub(r'<measure number="\d+"', '<measure number="1"', xml)
+
+
+def test_una_sola_pagina_se_renumera():
+    xml = _repeat_measure_numbers(page_xml(staves=2, measures=3))
+    merged, warnings = merge_pages([xml])
+    assert warnings == []
+    score = converter.parseData(merged, format="musicxml")
+    for staff in _staves(score):
+        assert [m.number for m in staff.getElementsByClass(stream.Measure)] == [1, 2, 3]
+        assert [n.pitch.step for n in staff.recurse().notes] == ["C", "C", "C"]
+
+
+@pytest.mark.parametrize("pages", [1, 2])
+def test_saca_titulo_y_compositor_inventados(pages):
+    xml = [_with_oemer_metadata(page_xml(2, 2), f"Page_{i:02d}") for i in range(1, pages + 1)]
+    xml[0] = xml[0].replace("Page_01", "Upload")
+    merged, _ = merge_pages(xml)
+    for invented in ("Upload", "Page_0", "Oemer", "Music21 Fragment", ">Music21<"):
+        assert invented not in merged
+    for tag in ("<work", "<movement-title", "<creator"):
+        assert tag not in merged
+    score = converter.parseData(merged, format="musicxml")
+    assert not score.metadata.title
+    assert not score.metadata.composer
+    # Sigue siendo una partitura válida.
+    assert len(_staves(score)) == 2
+
+
+def test_un_compositor_de_verdad_no_se_toca():
+    xml = page_xml(2, 1).replace(
+        "<part-list>", '<identification><creator type="composer">J. S. Bach</creator></identification><part-list>'
+    )
+    merged, _ = merge_pages([xml])
+    assert "J. S. Bach" in merged
 
 
 def test_sin_paginas_es_error():
@@ -90,3 +136,8 @@ def test_salida_tipo_oemer_no_se_reacomoda_al_unir():
     assert warnings == []
     merged = _notes_per_measure(xml)
     assert merged == [staff + staff for staff in page]
+
+
+def test_salida_tipo_oemer_de_una_pagina_no_se_reacomoda():
+    xml, _ = merge_pages([OEMER_LIKE_PAGE])
+    assert _notes_per_measure(xml) == _notes_per_measure(OEMER_LIKE_PAGE)

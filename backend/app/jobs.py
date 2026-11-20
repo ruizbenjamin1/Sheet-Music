@@ -40,7 +40,7 @@ class Job:
     id: str
     filename: str
     status: str = "queued"  # queued | running | done | error
-    message: str = "En cola"
+    message: str = "En la fila, esperando turno…"
     page: int = 0
     pages: int = 0
     musicxml: str | None = None

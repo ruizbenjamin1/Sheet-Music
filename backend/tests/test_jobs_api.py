@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from app.jobs import JobManager
 from app.main import MAX_UPLOAD_BYTES, app
 from app.omr import OmrError
-from tests.helpers import WEBP_HEAD, make_jpeg, make_pdf, make_png, page_xml
+from tests.helpers import WEBP_HEAD, make_jpeg, make_pdf, make_png, page_xml, png_head
 
 
 class FakeEngine:
@@ -257,3 +257,28 @@ def test_trabajos_vencidos_se_borran(client, use_engine):
     manager.get(job_id).finished_at -= 2 * 60 * 60
     client.post("/api/jobs", files=files)
     assert client.get(f"/api/jobs/{job_id}").status_code == 404
+
+
+def test_trabajo_en_espera_dice_que_espera_turno(client, use_engine):
+    gate = threading.Event()
+    use_engine(FakeEngine(gate=gate))
+    files = {"file": ("foto.png", make_png(), "image/png")}
+    first = client.post("/api/jobs", files=files).json()["id"]
+    second = client.post("/api/jobs", files=files).json()
+    assert second["status"] == "queued"
+    assert second["message"] == "En la fila, esperando turno…"
+    assert client.get(f"/api/jobs/{second['id']}").json()["message"] == "En la fila, esperando turno…"
+    gate.set()
+    for job_id in (first, second["id"]):
+        assert _wait(client, job_id)["status"] == "done"
+
+
+def test_imagen_gigante_termina_en_error_sin_llamar_al_motor(client, use_engine):
+    engine = FakeEngine()
+    use_engine(engine)
+    res = client.post("/api/jobs", files={"file": ("foto.png", png_head(30000, 20000), "image/png")})
+    assert res.status_code == 202
+    job = _wait(client, res.json()["id"])
+    assert job["status"] == "error"
+    assert "demasiado grande" in job["error"]
+    assert engine.seen == []

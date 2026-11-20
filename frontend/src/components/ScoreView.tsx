@@ -51,7 +51,9 @@ export default function ScoreView({ musicxml, fallbackTitle, onOsmdChange, onErr
     })
 
     osmd
-      .load(musicxml)
+      // Título de repuesto vacío: si el MusicXML no trae título, OSMD pondría "Untitled Score"
+      // y no se usaría fallbackTitle (el nombre del archivo).
+      .load(musicxml, '')
       .then(() => {
         if (cancelled) return
         osmd.render()

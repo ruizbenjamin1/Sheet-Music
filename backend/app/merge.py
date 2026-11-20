@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import xml.etree.ElementTree as ET
 
 from music21 import converter, stream
 from music21.musicxml.m21ToXml import GeneralObjectExporter
@@ -12,16 +13,41 @@ def _staves(n: int) -> str:
     return f"{n} pentagrama" if n == 1 else f"{n} pentagramas"
 
 
-def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
-    """Devuelve (musicxml, avisos). Con una sola página la devuelve tal cual.
+# Compositores que no son de verdad: los escriben oemer ("Transcribed by Oemer") o music21
+# cuando la partitura no trae uno.
+INVENTED_COMPOSERS = {"transcribed by oemer", "music21"}
+XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>' + chr(10)
 
-    Si una página se leyó con otra cantidad de pentagramas que la primera, se saltea
-    y se avisa (no se puede saber a qué pentagrama corresponde cada uno).
+
+def _drop_invented_metadata(xml: str) -> str:
+    """Saca el título y el compositor que inventan el motor y music21.
+
+    oemer pone como título el nombre de la imagen temporal ("Upload", "Page_01") y como
+    compositor "Transcribed by Oemer"; music21 completa con "Music21 Fragment" y "Music21".
+    El OMR no lee títulos, así que el título queda vacío y el frontend muestra el nombre
+    del archivo.
+    """
+    root = ET.fromstring(xml)
+    for tag in ("work", "movement-number", "movement-title"):
+        for el in root.findall(tag):
+            root.remove(el)
+    for iden in root.findall("identification"):
+        for creator in iden.findall("creator"):
+            if (creator.text or "").strip().lower() in INVENTED_COMPOSERS:
+                iden.remove(creator)
+    return XML_DECLARATION + ET.tostring(root, encoding="unicode")
+
+
+def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
+    """Devuelve (musicxml, avisos).
+
+    Siempre renumera los compases (oemer repite números, aun en una sola página) y saca
+    el título y compositor inventados. Si una página se leyó con otra cantidad de
+    pentagramas que la primera, se saltea y se avisa (no se puede saber a qué pentagrama
+    corresponde cada uno).
     """
     if not pages_xml:
         raise ValueError("merge_pages necesita al menos una página")
-    if len(pages_xml) == 1:
-        return pages_xml[0], []
 
     warnings: list[str] = []
     scores = [converter.parseData(xml, format="musicxml") for xml in pages_xml]
@@ -49,4 +75,4 @@ def merge_pages(pages_xml: list[str]) -> tuple[str, list[str]]:
     exporter = GeneralObjectExporter(base)
     exporter.makeNotation = False
     xml_bytes = exporter.parse()
-    return xml_bytes.decode("utf-8"), warnings
+    return _drop_invented_metadata(xml_bytes.decode("utf-8")), warnings

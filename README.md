@@ -32,6 +32,8 @@ cd backend
 .\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
 ```
 
+Si cambia el código del backend, cortalo con Ctrl+C y volvé a levantarlo: en esta compu `--reload` no siempre toma los cambios.
+
 Terminal 2, la app web:
 
 ```powershell

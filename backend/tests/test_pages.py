@@ -2,14 +2,19 @@ import pymupdf as fitz
 import pytest
 
 from app.pages import (
+    MAX_IMAGE_PIXELS,
     MAX_PAGES,
+    PDF_DPI,
+    PDF_MAX_SIDE_PX,
     InputError,
     check_upload,
+    image_size,
     kind_of,
+    pdf_page_dpi,
     sniff_format,
     to_page_images,
 )
-from tests.helpers import WEBP_HEAD, make_jpeg, make_pdf, make_png
+from tests.helpers import WEBP_HEAD, make_big_pdf, make_jpeg, make_pdf, make_png, png_head, webp_head
 
 
 def _write(tmp_path, name, data):
@@ -100,3 +105,53 @@ def test_check_upload_rechaza_tipo_falso():
     with pytest.raises(InputError, match="al revés"):
         check_upload("vals.pdf", "application/pdf", make_png())
     assert check_upload("foto.jpg", "image/jpeg", make_jpeg()) == "jpeg"
+
+
+# --- Tope de píxeles (E1-15) ---
+
+
+def test_pdf_con_pagina_enorme_baja_los_ppp(tmp_path):
+    # 3000 x 2000 pt (unos 106 x 70 cm): a 300 ppp serían 12500 x 8333 px.
+    src = _write(tmp_path, "upload.pdf", make_big_pdf(3000, 2000))
+    images = to_page_images(src, "pdf", tmp_path / "pages")
+    pix = fitz.Pixmap(str(images[0]))
+    assert max(pix.width, pix.height) <= PDF_MAX_SIDE_PX + 1
+    assert pix.width == pytest.approx(PDF_MAX_SIDE_PX, abs=2)
+    assert pix.height == pytest.approx(PDF_MAX_SIDE_PX * 2000 / 3000, abs=2)
+
+
+def test_pdf_dpi():
+    assert pdf_page_dpi(595, 842) == PDF_DPI  # A4 queda a 300 ppp
+    assert pdf_page_dpi(14400, 14400) == pytest.approx(25)  # 200 pulgadas -> 5000 px
+    assert pdf_page_dpi(0, 0) == PDF_DPI
+
+
+def test_image_size_lee_el_encabezado():
+    assert image_size(make_png()) == (8, 8)
+    assert image_size(make_jpeg()) == (8, 8)
+    assert image_size(webp_head(640, 480)) == (640, 480)
+    assert image_size(png_head(30000, 20000)) == (30000, 20000)
+
+
+def test_imagen_con_demasiados_pixeles_se_rechaza(tmp_path):
+    # Solo el encabezado dice 30000 x 20000 (600 MP); el archivo pesa unos pocos bytes.
+    src = _write(tmp_path, "upload.png", png_head(30000, 20000))
+    with pytest.raises(InputError, match="demasiado grande"):
+        to_page_images(src, "image", tmp_path / "pages")
+
+
+def test_webp_con_demasiados_pixeles_se_rechaza(tmp_path):
+    src = _write(tmp_path, "upload.webp", webp_head(16000, 16000))
+    with pytest.raises(InputError, match="megapíxeles"):
+        to_page_images(src, "image", tmp_path / "pages")
+
+
+def test_imagen_justo_en_el_limite_pasa(tmp_path):
+    src = _write(tmp_path, "upload.png", png_head(10000, MAX_IMAGE_PIXELS // 10000))
+    assert to_page_images(src, "image", tmp_path / "pages") == [src]
+
+
+def test_imagen_sin_tamano_legible(tmp_path):
+    src = _write(tmp_path, "upload.jpg", bytes([0xFF, 0xD8, 0xFF, 0xD9]))
+    with pytest.raises(InputError, match="dañada"):
+        to_page_images(src, "image", tmp_path / "pages")

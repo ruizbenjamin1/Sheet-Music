@@ -18,11 +18,31 @@ py -3.12 -m venv .venv
 | --- | --- |
 | `app/main.py` | Rutas de la API (ver `docs/arquitectura.md`). Lee la subida por partes y revisa los primeros bytes |
 | `app/upload_limit.py` | Middleware que corta `POST /api/jobs` apenas pasa los 20 MB (por `Content-Length` o contando bytes) |
-| `app/pages.py` | Valida el tipo (nombre/content-type y primeros bytes: `%PDF`, PNG, JPEG, WEBP) y convierte PDF a PNG en gris a 300 ppp (PyMuPDF). Máximo 10 páginas. Rechaza PDF dañados o con contraseña |
+| `app/pages.py` | Valida el tipo (nombre/content-type y primeros bytes: `%PDF`, PNG, JPEG, WEBP) y convierte PDF a PNG en gris a 300 ppp (PyMuPDF), bajando los ppp si la página es tan grande que el lado mayor pasaría de 5000 px (`PDF_MAX_SIDE_PX`). Máximo 10 páginas. Rechaza PDF dañados o con contraseña. Las imágenes se revisan leyendo solo el encabezado (PNG, JPEG, WEBP), sin decodificarlas: más de 60 megapíxeles (`MAX_IMAGE_PIXELS`) o tamaño ilegible es error. Ver "Tope de píxeles" |
 | `app/omr/base.py` | Interfaz `OmrEngine.recognize(image_path, work_dir) -> str` y `OmrError` |
 | `app/omr/oemer_engine.py` | Corre el comando `oemer <img> -o <dir>` y lee el `.musicxml` que deja. La salida de oemer va al log, no al usuario |
-| `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados a la hora |
-| `app/merge.py` | Une el MusicXML de varias páginas con music21 y renumera compases. Si una página tiene otra cantidad de pentagramas que la primera, la saltea y deja un aviso en `warnings`. Exporta sin `makeNotation`: si no, music21 "arregla" los compases que no cierran (oemer deja muchos), mueve notas entre compases y agrega compases vacíos |
+| `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados a la hora. Un trabajo nuevo arranca con el mensaje "En la fila, esperando turno…" |
+| `app/merge.py` | Une el MusicXML de las páginas con music21 y renumera los compases siempre, aunque sea una sola página (oemer repite números). Saca el título y el compositor inventados (ver abajo). Si una página tiene otra cantidad de pentagramas que la primera, la saltea y deja un aviso en `warnings`. Exporta sin `makeNotation`: si no, music21 "arregla" los compases que no cierran (oemer deja muchos), mueve notas entre compases y agrega compases vacíos |
+
+### Título y compositor
+
+oemer escribe como título (`<work-title>`) el nombre de la imagen temporal (`Upload`, `Page_01`) y como compositor
+`Transcribed by Oemer`; al exportar, music21 pone `<movement-title>` con lo mismo (o `Music21 Fragment` y `Music21`
+si no hay nada). Ninguno es real: el OMR no lee títulos. `merge.py` borra `<work>`, `<movement-title>`,
+`<movement-number>` y los `<creator>` con esos compositores inventados. Sin título, el frontend muestra el nombre del
+archivo (`fallbackTitle` en `ScoreView.tsx`, que carga con `osmd.load(xml, '')` para que OSMD no ponga "Untitled Score").
+
+### Tope de píxeles (E1-15)
+
+- **PDF:** cada página se rasteriza a 300 ppp, salvo que el lado mayor pase de 5000 px; ahí se bajan los ppp para que
+  quede en 5000 px (una A4 a 300 ppp da 3508 px, así que las hojas normales no cambian). Una página vacía de 3 × 2 m
+  ya no ocupa GB de memoria.
+- **Imágenes:** se lee el ancho y alto del encabezado (PNG `IHDR`, JPEG `SOFn`, WEBP `VP8`/`VP8L`/`VP8X`) antes de que
+  nadie la decodifique. Más de 60 megapíxeles: el trabajo termina en error con "La imagen es demasiado grande (…). El
+  máximo es de 60 megapíxeles: achicala o sacá la foto con menos resolución." Se eligió rechazar y no achicar porque
+  achicar obliga a decodificarla entera en el backend (justo lo que se quiere evitar), y 60 MP deja pasar las fotos de
+  celular de 48–50 MP. Por debajo del tope no se achica nada: oemer ya lleva cada imagen a unos 3,7 MP antes de leerla.
+- Si el encabezado no se entiende, el trabajo termina en error con "No pude leer la imagen. ¿Está dañada?".
 
 Los errores inesperados se registran con `logging` (con el detalle técnico) y al usuario le llega un mensaje genérico en español.
 
@@ -107,8 +127,8 @@ Crear otra clase con `name` y `recognize(...)` en `app/omr/` y cambiarla en `mai
 
 | Archivo | Qué prueba |
 | --- | --- |
-| `tests/helpers.py` | Genera PDF, PNG, JPEG y MusicXML mínimos dentro de la prueba |
-| `tests/test_pages.py` | PDF de 1 y de varias páginas, límite de 10, PDF roto, truncado y con contraseña, detección por bytes |
-| `tests/test_jobs_api.py` | API completa con un motor falso puesto en `app.state.jobs`: estados, sufijo, 415/413/400/503/404/409, errores en español |
+| `tests/helpers.py` | Genera PDF, PNG, JPEG, WEBP y MusicXML mínimos dentro de la prueba. `png_head`/`webp_head` arman solo el encabezado con el tamaño que se pida y `make_big_pdf` una página vacía enorme, para probar los topes sin archivos gigantes |
+| `tests/test_pages.py` | PDF de 1 y de varias páginas, límite de 10, PDF roto, truncado y con contraseña, detección por bytes, página enorme a menos ppp, tamaño leído del encabezado y tope de 60 MP |
+| `tests/test_jobs_api.py` | API completa con un motor falso puesto en `app.state.jobs`: estados, mensaje de espera, sufijo, 415/413/400/503/404/409, imagen gigante, errores en español |
 | `tests/test_oemer_engine.py` | `OemerEngine` con el proceso reemplazado por uno falso: lee el `.musicxml`, error de oemer y sin salida (mensaje en español, detalle al log), tiempo agotado, comando ausente |
-| `tests/test_merge.py` | Unir dos páginas de piano (2 pentagramas), el caso de distinta cantidad de pentagramas, y que una página "tipo oemer" (compases que no cierran) no se reacomode al unir |
+| `tests/test_merge.py` | Unir dos páginas de piano (2 pentagramas), el caso de distinta cantidad de pentagramas, que una página "tipo oemer" (compases que no cierran) no se reacomode, renumerar con una sola página y sacar título/compositor inventados |
