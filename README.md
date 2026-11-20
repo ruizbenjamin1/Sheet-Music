@@ -46,3 +46,7 @@ Abrí http://localhost:5173. Si dice "Servidor de lectura conectado", está todo
 ## Pruebas
 
 Ver [`docs/pruebas.md`](docs/pruebas.md).
+
+## Probar desde el celular
+
+Con el celular en la misma red WiFi que la compu, levantá la app web con `npm run dev -- --host` y abrí en el celular `http://<IP de la compu>:5173` (la IP sale en la consola de Vite). Si Windows pregunta por el firewall, permitilo en redes privadas.

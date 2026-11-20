@@ -7,6 +7,7 @@ cambiar por una cola real (Redis, Supabase, etc.) sin tocar la API.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import tempfile
 import threading
@@ -30,6 +31,21 @@ MAX_PENDING_JOBS = 5
 MAX_FILENAME_CHARS = 200
 
 UNEXPECTED_ERROR = "Hubo un error inesperado al leer la partitura. Probá de nuevo o con otro archivo."
+
+
+def _keep_copy_for_dev(job: "Job", data: bytes, fmt: str) -> None:
+    """Solo en desarrollo: si está la variable KEEP_UPLOADS_DIR, guarda una copia de lo subido
+    (para medir lectores con fotos reales). En producción no se define y no se guarda nada."""
+    target = os.environ.get("KEEP_UPLOADS_DIR")
+    if not target:
+        return
+    try:
+        folder = Path(target)
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        (folder / f"subida-{stamp}-{job.id[:8]}{SUFFIXES[fmt]}").write_bytes(data)
+    except OSError:
+        log.exception("No pude guardar la copia de desarrollo de %s", job.id)
 
 
 class QueueFullError(RuntimeError):
@@ -124,6 +140,7 @@ class JobManager:
             job.status, job.message = "running", "Preparando páginas"
             src = work_dir / f"upload{SUFFIXES[fmt]}"
             src.write_bytes(data)
+            _keep_copy_for_dev(job, data, fmt)
 
             kind = kind_of_format(fmt)
             images = to_page_images(src, kind, work_dir / "pages")

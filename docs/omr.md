@@ -188,3 +188,7 @@ Crear otra clase con `name` y `recognize(...)` en `app/omr/` y cambiarla en `mai
 | `tests/test_oemer_runner.py` | El parche de `has_key` sobre un módulo falso (sin importar oemer): lista vacía da `False`, sigue detectando armaduras, y si oemer cambió no se aplica y se avisa |
 | `tests/test_preprocess.py` | Preprocesado con fotos sintéticas (hoja con pentagramas en perspectiva sobre fondo oscuro, sombra): encuentra las esquinas, recorta sin fondo, conserva las 15 líneas, saca la sombra, y devuelve la original si no hay hoja o es un escaneo |
 | `tests/test_merge.py` | Unir dos páginas de piano (2 pentagramas), el caso de distinta cantidad de pentagramas, que una página "tipo oemer" (compases que no cierran) no se reacomode, renumerar con una sola página y sacar título/compositor inventados |
+
+## Copia de lo subido (solo desarrollo)
+
+Si el backend se levanta con la variable `KEEP_UPLOADS_DIR=<carpeta>`, guarda una copia de cada archivo subido ahí (por ejemplo `muestras/subidas`, que no se sube a git). Sirve para medir lectores con fotos reales sacadas desde el celular. En producción no se define y no se guarda nada.

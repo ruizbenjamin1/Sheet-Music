@@ -347,3 +347,17 @@ def test_mensaje_enderezando_la_foto(client, use_engine, monkeypatch):
     res = client.post("/api/jobs", files={"file": ("foto.png", make_png(), "image/png")})
     _wait(client, res.json()["id"])
     assert seen_messages == ["Enderezando la foto"]
+
+
+def test_copia_de_desarrollo_solo_con_variable(client, use_engine, tmp_path, monkeypatch):
+    use_engine(FakeEngine())
+    monkeypatch.delenv("KEEP_UPLOADS_DIR", raising=False)
+    res = client.post("/api/jobs", files={"file": ("a.pdf", make_pdf(1), "application/pdf")})
+    _wait(client, res.json()["id"])
+    assert not any(tmp_path.iterdir())
+
+    monkeypatch.setenv("KEEP_UPLOADS_DIR", str(tmp_path / "copias"))
+    res = client.post("/api/jobs", files={"file": ("b.pdf", make_pdf(1), "application/pdf")})
+    _wait(client, res.json()["id"])
+    copias = list((tmp_path / "copias").iterdir())
+    assert len(copias) == 1 and copias[0].suffix == ".pdf"
