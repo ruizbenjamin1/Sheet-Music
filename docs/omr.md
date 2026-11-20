@@ -137,6 +137,36 @@ sean alteraciones. Se aplica **en memoria** en el proceso que corre oemer (no se
 `PARCHE_OEMER_NO_APLICADO: …` en stderr, que `OemerEngine` pasa al log como advertencia. Si se actualiza oemer,
 revisar si el bug sigue y si el parche todavía hace falta.
 
+## Comparación con Audiveris (E1-19)
+
+Se probó **Audiveris 5.11.0** (licencia **AGPL-3.0**), la última release estable a 2026-11-20. No está conectado al
+backend: solo se midió.
+
+- Instalación (fuera del repo, sin tocar el sistema): `Audiveris-5.11.0-windowsConsole-x86_64.msi` (85 MB) extraído
+  en `%LOCALAPPDATA%\partituras-tools\audiveris\app\Audiveris\` (163 MB). Trae su propio Java (OpenJDK 25.0.3) y
+  Tesseract 5.5.2; no usa el Java 8 del PATH ni cambia `JAVA_HOME`. `msiexec /a` falló en esta PC (código 1622), así
+  que el `.msi` se abrió con `msilib` + `olefile` y `expand.exe` de Windows.
+- Comando: `Audiveris.exe -batch -export -output <carpeta> -- <imagen>` deja `<nombre>.mxl` (MusicXML comprimido).
+- Tiempo por página (CPU, Ryzen 5 3600): **10–14 s** con imágenes de ~2000 px y **19–22 s** escaladas a ~3000 px,
+  contra ~300 s de oemer. Arrancar Java cuesta ~1,5–2 s de eso (`-version` tarda 1,5 s); el resto es la lectura.
+- Necesita interlínea de unos 20 px: las fotos de WhatsApp sin recortar (interlínea 7–8 px) las rechaza
+  ("too low interline value"). Escaladas ×2,6 a ×2,9 tampoco anduvieron bien (una sin pentagramas, otra mal armada).
+
+| Imagen | oemer | Audiveris |
+| --- | --- | --- |
+| Oda limpia (verdad conocida, 39 notas) | ~290 s, 8/8 compases, 54 % | 10–12 s, 8/8 compases, **100 %** |
+| Oda tipo foto | ~285 s, 8/8, 77 % | 11 s, 7/8 (pierde el último compás), **87 %** |
+| Foto 1 de Benjamin recortada (16 compases) | 295 s, 19 compases, con errores | 13 s, 13 compases en 3 partes; compases mezclados |
+| Foto 2 de Benjamin recortada (16 compases) | 301 s, 16 compases, con errores | 12 s, 8 compases en 3 partes y 6 sistemas (son 4) |
+| Fotos recortadas escaladas ×1,5 (interlínea ~20 px) | — | 20–21 s; igual que arriba |
+| Ídem binarizadas (Otsu) | — | 19–22 s; foto 1: 14 compases y 5 sistemas bien; foto 2 igual de mal |
+| Fotos originales sin recortar | ~300–312 s, 21 compases cada una, con errores | rechazadas por resolución |
+
+En las fotos reales Audiveris reconoce bien muchas alturas (por ejemplo los compases 1 a 3 de la mano derecha de la
+foto 2), pero no encuentra las barras de compás ni arma bien la llave del piano: separa los pentagramas en partes
+distintas y junta varios compases en uno. Con imágenes limpias (lo que da un PDF) es mucho mejor y ~25 veces más rápido
+que oemer. Conclusión de E1-19: no reemplaza a oemer para fotos; para PDF sí convendría. Lo decide Benjamin.
+
 ## Cambiar de motor
 
 Crear otra clase con `name` y `recognize(...)` en `app/omr/` y cambiarla en `main.py`. Candidatos: homr (mejor en algunos casos, se instala desde git) y Audiveris (Java 17+, el más maduro).

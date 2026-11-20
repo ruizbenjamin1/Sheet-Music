@@ -17,6 +17,11 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-19 (parte) — Audiveris comparado  (2026-11-20)
+- Audiveris 5.11.0 (AGPL-3.0, trae su Java) en `%LOCALAPPDATA%\partituras-toolsudiveris\`, sin instalar nada en el sistema.
+- ~10 s por página contra ~5 min de oemer. Oda limpia 100 % (oemer 54 %), Oda tipo foto 87 % (oemer 77 %). Con las fotos de WhatsApp de Benjamin desarma la partitura (resolución baja: interlínea 7–8 px).
+- Propuesta a Benjamin: Audiveris principal y oemer de respaldo; falta probar con una foto en resolución completa. Detalle en `docs/omr.md`.
+
 ### E1-18 y parte de E1-19 — Fotos: recorte y error de oemer  (2026-11-20)
 - `backend/app/preprocess.py`: detecta la hoja, corrige perspectiva, saca fondo y sombra. Conectado en `jobs.py` solo para fotos ("Enderezando la foto").
 - Causa del error: bug de oemer en `Measure.has_key` (lista vacía). Parche en memoria en `backend/app/omr/oemer_runner.py`, sin tocar site-packages.
