@@ -13,7 +13,7 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 | Etapa | Fecha | Pruebas | Auditoría | Correcciones | PR |
 | --- | --- | --- | --- | --- | --- |
-| 0 | 2026-11-20 | OK (pytest 3/3, lint, build, humo, 360 px) | Aprobada: 0 bloqueantes, 2 a corregir | E0-09, E0-10 | ver PR |
+| 0 | 2026-11-20 | OK (pytest 3/3, lint, build, humo, 360 px) | Aprobada: 0 bloqueantes, 2 a corregir | E0-09, E0-10 | Sin PR: fusión local en `main` |
 
 ---
 

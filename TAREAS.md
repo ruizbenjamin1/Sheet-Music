@@ -8,7 +8,7 @@ Toda etapa termina con dos tareas `[test]`: **pruebas** y **auditoría** (ver `d
 
 | Etapa | Nombre | Tareas | Hechas | Estado |
 | --- | --- | --- | --- | --- |
-| 0 | Base del proyecto | 10 | 8 | Falta OK de Benjamin |
+| 0 | Base del proyecto | 10 | 9 | Falta confirmar E0-07 |
 | 1 | MVP: subir, leer, ver y tocar | 13 | 0 | Pendiente |
 | 2 | Aprender | — | — | Pendiente |
 | 3 | Corregir | — | — | Pendiente |
@@ -36,7 +36,7 @@ Objetivo: el repo tiene la forma de trabajo armada y el frontend y el backend ar
 - [x] **E0-09** `[ui]` Corrección de auditoría: con el backend apagado, el proxy responde 502 y la app mostraba "El servidor respondió 502." en vez de avisar que no hay conexión.
 - [x] **E0-10** `[coord]` Corrección de auditoría: versión de Node en `README.md` (Vite 8 pide 20.19+ o 22.12+) y nota sobre pruebas en `docs/omr.md`.
 - [ ] **E0-07** `[yo]` Benjamin levanta los dos servidores con los pasos del `README.md` y confirma que en http://localhost:5173 ve "Servidor de lectura conectado".
-- [ ] **E0-08** `[yo]` Benjamin revisa y aprueba el PR de la Etapa 0.
+- [x] **E0-08** `[yo]` Benjamin aprobó la Etapa 0: se fusionó en `main` local y él hace el push (sin PR, porque el repo no tenía `main`).
 
 ## Etapa 1 — MVP: subir, leer, ver y tocar
 
