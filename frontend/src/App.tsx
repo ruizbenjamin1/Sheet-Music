@@ -337,7 +337,7 @@ function Progress({ filename, job, onCancel }: { filename: string; job: JobStatu
       <div className="reading-card">
         <StaffArt animated />
         <h1>Leyendo la partitura…</h1>
-        <p className="reading-sub">Suele tardar menos de un minuto.</p>
+        <p className="reading-sub">Suele tardar uno o dos minutos.</p>
         <div
           className={`bar${percent === null ? ' bar-indeterminate' : ''}`}
           role="progressbar"

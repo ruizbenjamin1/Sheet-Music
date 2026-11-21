@@ -17,6 +17,12 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 ---
 
+### E1-23 — Lector con IA (Claude Code CLI, solo desarrollo)  (2026-11-20)
+- `ClaudeEngine` + `claude_score.py`: Claude lee la foto y devuelve un JSON compacto (compases, pentagramas, voces, tresillos) que music21 pasa a MusicXML. Motor `claude+audiveris+oemer` con `OMR_USE_CLAUDE=1`.
+- Prueba real con la foto de la pieza 26: 16/16 compases en 62 s (directo) y 112 s por la API. En los 6 primeros: mano izquierda 5/6 exactos; mano derecha con el ritmo de tresillos bien, 1 nota mal y sin la voz del bajo sostenido (se ajustó el pedido).
+- Usa la cuenta de Claude de Benjamin; para publicar hay que pasar a la API. El CLI se lanza sin las variables CLAUDE*/ANTHROPIC* que hereda de la app de escritorio.
+- pytest 127/127.
+
 ### E1-22 — Diseño para celular  (2026-11-20)
 - Inicio con "Sacar una foto" grande abajo; lectura con progreso simple; partitura con encabezado fijo, zoom automático al ancho y lupas; reproductor fijo abajo con Reproducir/Pausa, Detener y Velocidad; créditos del piano abajo de la partitura; diagnóstico `[dev]` plegado.
 - Probado con capturas a 360, 375, 390 y 1280 px, claro y oscuro. Lint y build OK.

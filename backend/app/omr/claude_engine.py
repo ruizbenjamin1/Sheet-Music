@@ -53,7 +53,9 @@ into the JSON format of the schema. Rules:
 - "measures": every measure of the piece in order, across all systems of the page. For each measure, one entry per
   staff (top to bottom, same count as "clefs"), and for each staff a list of voices.
 - Use a separate voice when one hand plays independent rhythms at the same time (for example triplet eighths
-  with stems up and a held quarter note with stems down on the same staff). Notes that start together and have
+  with stems up and a held quarter note with stems down on the same staff). Look for this carefully: a notehead
+  with TWO stems (one up into a beamed group, one down on its own) belongs to both voices, so write it in both:
+  as the first note of the group in the upper voice AND as a longer note in the lower voice. Notes that start together and have
   the same length go in ONE event as a chord ("pitches" with several notes).
 - Each event: "pitches" with the sounding pitches (letter, accidental # or b, octave; middle C = C4). Apply the key
   signature and any accidental earlier in the same measure. Empty list = rest.
@@ -128,7 +130,9 @@ def child_env() -> dict[str, str]:
     return {
         k: v
         for k, v in os.environ.items()
-        if k in keep or not (k.upper().startswith("CLAUDE") or k.upper() == "AI_AGENT")
+        # ANTHROPIC_BASE_URL y similares los pone la app de escritorio: mandarían el CLI a su proxy.
+        if k in keep
+        or not (k.upper().startswith(("CLAUDE", "ANTHROPIC")) or k.upper() == "AI_AGENT")
     }
 
 
