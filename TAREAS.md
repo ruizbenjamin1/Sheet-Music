@@ -9,9 +9,9 @@ Toda etapa termina con dos tareas `[test]`: **pruebas** y **auditoría** (ver `d
 | Etapa | Nombre | Tareas | Hechas | Estado |
 | --- | --- | --- | --- | --- |
 | 0 | Base del proyecto | 10 | 10 | Cerrada |
-| 1 | MVP: subir, leer, ver y tocar | 21 | 17 | Falta la prueba de Benjamin |
-| 2 | Aprender | — | — | Pendiente |
-| 3 | Corregir | — | — | Pendiente |
+| 1 | MVP: subir, leer, ver y tocar | 23 | 19 | Pruebas y auditoría finales |
+| 2 | Corregir (adelantada por pedido de Benjamin) | — | — | Pendiente |
+| 3 | Aprender | — | — | Pendiente |
 | 4 | Practicar (MIDI) | — | — | Pendiente |
 | 5 | Entender (IA) | — | — | Pendiente |
 | 6 | Descubrir (catálogo) | — | — | Pendiente |
@@ -44,7 +44,7 @@ Objetivo: subir un PDF o una foto de una partitura impresa, que se lea a MusicXM
 
 Nota: en el backend ya hay un borrador de E1-02 a E1-05 (`backend/app/pages.py`, `omr/`, `jobs.py`, `merge.py`, `main.py`), escrito al armar la base y **sin probar con partituras reales**. Las tareas parten de ese borrador.
 
-- [ ] **E1-01** `[yo]` Benjamin junta 3 o 4 partituras impresas propias para probar (al menos un PDF de varias páginas y una foto de celular) y las pone en `muestras/`. No se suben a git.
+- [x] **E1-01** `[yo]` Benjamin junta 3 o 4 partituras impresas propias para probar (al menos un PDF de varias páginas y una foto de celular) y las pone en `muestras/`. No se suben a git.
 - [x] **E1-02** `[omr]` PDF o imagen a páginas (`pages.py`): pruebas con un PDF de 1 y de varias páginas, límite de páginas y archivos rotos.
 - [x] **E1-03** `[omr]` Motor oemer detrás de `OmrEngine`: correrlo con una muestra, confirmar la descarga de modelos la primera vez y medir cuánto tarda por página. Revisar que no choquen `onnxruntime` y `onnxruntime-gpu`.
 - [x] **E1-04** `[omr]` Trabajos en segundo plano y API (`POST /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/musicxml`): pruebas con un motor falso, errores claros en español. Incluye lo que encontró la auditoría de la Etapa 0: sufijo del archivo temporal fijo según el tipo (no el nombre que manda el usuario), revisar los primeros bytes para confirmar PDF o imagen, no mostrar errores técnicos en inglés, límite de trabajos en cola, cortar la subida al pasar los 20 MB, y pasar la señal de cancelación a `fetch` en `api.ts`.
@@ -63,16 +63,18 @@ Nota: en el backend ya hay un borrador de E1-02 a E1-05 (`backend/app/pages.py`,
 - [x] **E1-21** `[audio]` En el celular no se escuchaba: arreglo para iPhone en silencio y para tocar antes de que cargue el sonido, con diagnóstico visible en desarrollo. Falta confirmarlo en el iPhone de Benjamin.
 - [x] **E1-22** `[ui]` Rediseño para celular: "Sacar una foto" como botón principal, partitura que se ajusta al ancho con lupas, reproductor fijo abajo, detalles de app nativa (zonas seguras del iPhone, sin zoom en inputs). Falta probarlo en el iPhone de Benjamin.
 - [x] **E1-23** `[omr]` Lector con IA para probar en desarrollo: `ClaudeEngine` corre Claude Code CLI local (cuenta de Benjamin, sin clave de API) y devuelve un JSON compacto (compás, armadura, claves, voces con duraciones en fracciones) que se pasa a MusicXML con music21. Se activa solo con `OMR_USE_CLAUDE=1`: Claude → Audiveris → oemer. Probado con la foto de la pieza 26: 16/16 compases en 1–2 min. Para publicar hay que pasar a la API de Anthropic.
-- [ ] **E1-13** `[yo]` Benjamin decide qué hacer con PyMuPDF, que tiene licencia AGPL: si la app se publica como servicio, obliga a compartir el código del backend. Opciones: publicar el código, o cambiarlo por pypdfium2 (Apache/BSD). Se puede decidir hasta antes de publicar.
-- [ ] **E1-10** `[test]` Medir la precisión de oemer con las muestras de E1-01 (notas bien leídas sobre el total, a ojo por compás). Si es mala, proponer probar homr.
+- [ ] **E1-24** `[test]` Pruebas finales de la etapa (después de E1-17 a E1-23): automáticas, humo y prueba manual con el ejemplo y una foto.
+- [ ] **E1-25** `[test]` Auditoría final de lo que cambió desde la auditoría anterior (commits desde a023cfe).
+- [ ] **E1-13** `[yo]` (no bloquea el cierre: se decide antes de publicar) Benjamin decide qué hacer con PyMuPDF, que tiene licencia AGPL: si la app se publica como servicio, obliga a compartir el código del backend. Opciones: publicar el código, o cambiarlo por pypdfium2 (Apache/BSD). Se puede decidir hasta antes de publicar.
+- [x] **E1-10** `[test]` Medir la precisión de oemer con las muestras de E1-01 (notas bien leídas sobre el total, a ojo por compás). Si es mala, proponer probar homr.
 - [x] **E1-11** `[test]` Pruebas de la etapa (automáticas + prueba manual completa: subir, leer, ver, tocar).
 - [x] **E1-12** `[test]` Auditoría de la etapa.
 
-## Etapa 2 — Aprender
-Teclado animado con un color por mano, nombres de notas, manos separadas, tempo ajustable.
-
-## Etapa 3 — Corregir
+## Etapa 2 — Corregir (antes Etapa 3; se adelantó el 2026-11-20 porque la lectura siempre deja errores)
 Editor para arreglar notas mal leídas tocando sobre la partitura.
+
+## Etapa 3 — Aprender (antes Etapa 2)
+Teclado animado con un color por mano, nombres de notas, manos separadas, tempo ajustable.
 
 ## Etapa 4 — Practicar (MIDI)
 Modo práctica con el teclado por Web MIDI: la app espera la nota correcta, marca errores y mide el tempo. El Casio CT-670 necesita un adaptador USB-MIDI (DIN de 5 pines). Se puede adelantar si Benjamin consigue el adaptador.
