@@ -9,7 +9,7 @@ Toda etapa termina con dos tareas `[test]`: **pruebas** y **auditoría** (ver `d
 | Etapa | Nombre | Tareas | Hechas | Estado |
 | --- | --- | --- | --- | --- |
 | 0 | Base del proyecto | 10 | 10 | Cerrada |
-| 1 | MVP: subir, leer, ver y tocar | 23 | 19 | Pruebas y auditoría finales |
+| 1 | MVP: subir, leer, ver y tocar | 25 | 24 | Cerrada (E1-13 se decide antes de publicar) |
 | 2 | Corregir (adelantada por pedido de Benjamin) | — | — | Pendiente |
 | 3 | Aprender | — | — | Pendiente |
 | 4 | Practicar (MIDI) | — | — | Pendiente |
@@ -63,8 +63,10 @@ Nota: en el backend ya hay un borrador de E1-02 a E1-05 (`backend/app/pages.py`,
 - [x] **E1-21** `[audio]` En el celular no se escuchaba: arreglo para iPhone en silencio y para tocar antes de que cargue el sonido, con diagnóstico visible en desarrollo. Falta confirmarlo en el iPhone de Benjamin.
 - [x] **E1-22** `[ui]` Rediseño para celular: "Sacar una foto" como botón principal, partitura que se ajusta al ancho con lupas, reproductor fijo abajo, detalles de app nativa (zonas seguras del iPhone, sin zoom en inputs). Falta probarlo en el iPhone de Benjamin.
 - [x] **E1-23** `[omr]` Lector con IA para probar en desarrollo: `ClaudeEngine` corre Claude Code CLI local (cuenta de Benjamin, sin clave de API) y devuelve un JSON compacto (compás, armadura, claves, voces con duraciones en fracciones) que se pasa a MusicXML con music21. Se activa solo con `OMR_USE_CLAUDE=1`: Claude → Audiveris → oemer. Probado con la foto de la pieza 26: 16/16 compases en 1–2 min. Para publicar hay que pasar a la API de Anthropic.
-- [ ] **E1-24** `[test]` Pruebas finales de la etapa (después de E1-17 a E1-23): automáticas, humo y prueba manual con el ejemplo y una foto.
-- [ ] **E1-25** `[test]` Auditoría final de lo que cambió desde la auditoría anterior (commits desde a023cfe).
+- [x] **E1-24** `[test]` Pruebas finales de la etapa (después de E1-17 a E1-23): automáticas, humo y prueba manual con el ejemplo y una foto.
+- [x] **E1-25** `[test]` Auditoría final de lo que cambió desde la auditoría anterior (commits desde a023cfe).
+- [x] **E1-26** `[omr]` Corrección de auditoría (seguridad): la IA solo puede leer la carpeta del trabajo (`--restricted`, sin regla allow amplia), verificado de verdad; se rechaza un CLI `.cmd`/`.bat`; el texto de la imagen nunca se toma como instrucciones.
+- [x] **E1-27** `[omr]` "Cancelar" frena de verdad: `DELETE /api/jobs/{id}` mata el proceso del lector y no pasa al respaldo.
 - [ ] **E1-13** `[yo]` (no bloquea el cierre: se decide antes de publicar) Benjamin decide qué hacer con PyMuPDF, que tiene licencia AGPL: si la app se publica como servicio, obliga a compartir el código del backend. Opciones: publicar el código, o cambiarlo por pypdfium2 (Apache/BSD). Se puede decidir hasta antes de publicar.
 - [x] **E1-10** `[test]` Medir la precisión de oemer con las muestras de E1-01 (notas bien leídas sobre el total, a ojo por compás). Si es mala, proponer probar homr.
 - [x] **E1-11** `[test]` Pruebas de la etapa (automáticas + prueba manual completa: subir, leer, ver, tocar).

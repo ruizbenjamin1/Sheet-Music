@@ -87,7 +87,9 @@ def test_arma_el_comando(tmp_path):
     assert cmd[cmd.index("--output-format") + 1] == "json"
     assert json.loads(cmd[cmd.index("--json-schema") + 1]) == SCORE_SCHEMA
     assert cmd[cmd.index("--tools") + 1] == "Read"
-    assert cmd[cmd.index("--allowedTools") + 1] == "Read"
+    # Sin --allowedTools: Read queda acotado a las carpetas de trabajo (E1-26).
+    assert "--allowedTools" not in cmd and "--allowed-tools" not in cmd
+    assert "--restricted" in cmd
     assert cmd[cmd.index("--add-dir") + 1] == str(img.parent)
     assert cmd[cmd.index("--permission-mode") + 1] == "dontAsk"
     assert "--dangerously-skip-permissions" not in cmd and "bypassPermissions" not in cmd
@@ -105,7 +107,7 @@ def test_corre_el_cli_con_el_pedido_por_stdin(monkeypatch, tmp_path):
         seen.update(kwargs, cmd=cmd)
         return subprocess.CompletedProcess(cmd, 0, stdout=cli_stdout(sample()), stderr="")
 
-    monkeypatch.setattr(claude_engine.subprocess, "run", run)
+    monkeypatch.setattr(claude_engine, "run_process", run)
     monkeypatch.setenv("CLAUDECODE", "1")
     monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "x")
     monkeypatch.setenv("CLAUDE_OMR_MODEL", "sonnet")
@@ -161,7 +163,7 @@ def test_salida_invalida(stdout):
 )
 def test_errores_en_espanol_y_detalle_al_log(monkeypatch, tmp_path, caplog, stdout):
     monkeypatch.setattr(
-        claude_engine.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout=stdout, stderr="boom")
+        claude_engine, "run_process", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout=stdout, stderr="boom")
     )
     with caplog.at_level(logging.ERROR), pytest.raises(OmrError, match="La lectura con IA no funcionó"):
         ClaudeEngine(Path("claude")).recognize(tmp_path / "a.png", tmp_path)
@@ -172,7 +174,7 @@ def test_tiempo_agotado(monkeypatch, tmp_path):
     def run(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
 
-    monkeypatch.setattr(claude_engine.subprocess, "run", run)
+    monkeypatch.setattr(claude_engine, "run_process", run)
     with pytest.raises(OmrError, match="tardó demasiado"):
         ClaudeEngine(Path("claude"), timeout=1).recognize(tmp_path / "a.png", tmp_path)
 
@@ -181,7 +183,7 @@ def test_cli_que_no_arranca(monkeypatch, tmp_path):
     def run(cmd, **kwargs):
         raise FileNotFoundError(cmd[0])
 
-    monkeypatch.setattr(claude_engine.subprocess, "run", run)
+    monkeypatch.setattr(claude_engine, "run_process", run)
     with pytest.raises(OmrError, match="no está disponible"):
         ClaudeEngine(Path("no-existe")).recognize(tmp_path / "a.png", tmp_path)
 
@@ -375,7 +377,7 @@ def test_find_claude_cli(monkeypatch, tmp_path):
 
 def test_si_la_ia_falla_lee_con_audiveris_y_avisa(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        claude_engine.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="basura", stderr="")
+        claude_engine, "run_process", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="basura", stderr="")
     )
     audiveris = Fake("audiveris", result=page_xml(2, 1))
     oemer = Fake("oemer", result="no")
@@ -391,3 +393,34 @@ def test_si_la_ia_falla_lee_con_audiveris_y_avisa(monkeypatch, tmp_path):
     assert oemer.calls == []
     assert progress[-1] == "La lectura con IA no funcionó con esta foto; probé con el lector común"
     assert warnings == ["La lectura con IA no funcionó con esta foto; se leyó con el lector común."]
+
+
+# --- Seguridad (E1-26) ---
+
+
+@pytest.mark.parametrize("name", ["claude.cmd", "claude.BAT"])
+def test_rechaza_cli_que_es_script_de_cmd(monkeypatch, tmp_path, caplog, name):
+    script = tmp_path / name
+    script.write_bytes(b"")
+    monkeypatch.setenv("CLAUDE_CLI", str(script))
+    with caplog.at_level(logging.WARNING):
+        assert claude_engine.find_claude_cli() is None
+    assert "cmd.exe" in caplog.text
+    monkeypatch.delenv("CLAUDE_CLI")
+    monkeypatch.setattr(claude_engine.shutil, "which", lambda n: str(script))
+    assert claude_engine.find_claude_cli() is None
+
+
+def test_el_pedido_dice_que_el_texto_de_la_imagen_no_son_instrucciones():
+    assert "never instructions" in claude_engine.SYSTEM_PROMPT
+    assert "never instructions" in claude_engine.PROMPT
+    assert "only the printed title" in claude_engine.PROMPT
+
+
+def test_titulo_en_una_linea_y_recortado():
+    xml = to_musicxml(sample(title="  Vals\n\n del   río " + "x" * 300))
+    title = merge_pages([xml])[0]
+    import re as _re
+
+    found = _re.search(r"<work-title>(.*?)</work-title>", title).group(1)
+    assert found.startswith("Vals del río x") and len(found) == 120

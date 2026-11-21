@@ -7,7 +7,7 @@ const API = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 export type JobStatus = {
   id: string
   filename: string
-  status: 'queued' | 'running' | 'done' | 'error'
+  status: 'queued' | 'running' | 'done' | 'error' | 'cancelled'
   message: string
   page: number
   pages: number
@@ -93,9 +93,19 @@ export async function getMusicXml(id: string, signal?: AbortSignal): Promise<str
 }
 
 /**
+ * Le pide al backend que corte la lectura (DELETE /api/jobs/{id}). No espera la
+ * respuesta ni falla si no anda: si no llega, el trabajo vence solo.
+ */
+export function cancelJob(id: string): void {
+  fetch(`${API}/api/jobs/${id}`, { method: 'DELETE', keepalive: true }).catch(() => {
+    /* sin conexión: no hay nada más que hacer */
+  })
+}
+
+/**
  * Sube el archivo y espera a que el OMR termine, avisando el progreso.
- * Si se cancela `signal`, corta la subida o la espera y rechaza con un
- * DOMException de nombre 'AbortError' (el trabajo sigue en el backend hasta vencer).
+ * Si se cancela `signal`, corta la subida o la espera, le pide al backend que
+ * corte la lectura (`cancelJob`) y rechaza con un DOMException de nombre 'AbortError'.
  */
 export async function readScore(
   file: File,
@@ -103,12 +113,18 @@ export async function readScore(
   signal?: AbortSignal,
 ): Promise<{ musicxml: string; warnings: string[] }> {
   let job = await uploadScore(file, signal)
-  onProgress(job)
-  while (job.status === 'queued' || job.status === 'running') {
-    await wait(1500, signal)
-    job = await getJob(job.id, signal)
+  try {
     onProgress(job)
+    while (job.status === 'queued' || job.status === 'running') {
+      await wait(1500, signal)
+      job = await getJob(job.id, signal)
+      onProgress(job)
+    }
+  } catch (e) {
+    if (signal?.aborted) cancelJob(job.id)
+    throw e
   }
+  if (job.status === 'cancelled') throw new Error(job.message)
   if (job.status === 'error') throw new Error(job.error ?? 'No se pudo leer la partitura.')
   return { musicxml: await getMusicXml(job.id, signal), warnings: job.warnings }
 }

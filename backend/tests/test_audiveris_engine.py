@@ -62,7 +62,7 @@ def image(tmp_path):
 def test_arma_el_comando_y_devuelve_el_musicxml(monkeypatch, tmp_path, image):
     xml = page_xml(staves=2, measures=2)
     run = fake_run({".mxl": xml})
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", run)
+    monkeypatch.setattr(audiveris_engine, "run_process", run)
 
     assert AudiverisEngine(EXE, timeout=42).recognize(image, tmp_path) == xml
     cmd, kwargs = run.calls[0]
@@ -94,7 +94,7 @@ def test_imagen_ancha_no_se_agranda(tmp_path):
 
 def test_une_los_movimientos_en_orden(monkeypatch, tmp_path, image):
     outputs = {f".mvt{n}.mxl": page_xml(staves=2, measures=1, step=step) for n, step in [(1, "C"), (2, "D"), (10, "E")]}
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", fake_run(outputs))
+    monkeypatch.setattr(audiveris_engine, "run_process", fake_run(outputs))
 
     xml = AudiverisEngine(EXE).recognize(image, tmp_path)
     score = converter.parseData(xml, format="musicxml")
@@ -112,7 +112,7 @@ def test_movimiento_con_otros_pentagramas_se_saltea_con_aviso(monkeypatch, tmp_p
         ".mvt2.mxl": page_xml(staves=2, measures=1, step="D"),
         ".mvt3.mxl": page_xml(staves=2, measures=1, step="E"),
     }
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", fake_run(outputs))
+    monkeypatch.setattr(audiveris_engine, "run_process", fake_run(outputs))
     warnings: list[str] = []
     with notifying(Notifier(progress=lambda t: None, warning=warnings.append, subject="esta foto")):
         xml = AudiverisEngine(EXE).recognize(image, tmp_path)
@@ -130,20 +130,20 @@ def test_saca_la_ruta_de_la_imagen(monkeypatch, tmp_path, image):
         '<miscellaneous-field name="source-file">C:\\tmp\\secreto\\x.png</miscellaneous-field>'
         "</miscellaneous></identification><part-list>",
     )
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", fake_run({".mxl": xml}))
+    monkeypatch.setattr(audiveris_engine, "run_process", fake_run({".mxl": xml}))
     assert "secreto" not in AudiverisEngine(EXE).recognize(image, tmp_path)
 
 
 def test_falla_en_espanol_y_detalle_al_log(monkeypatch, tmp_path, image, caplog):
     run = fake_run(returncode=1, stdout="WARN  StepException: No regularly spaced lines found")
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", run)
+    monkeypatch.setattr(audiveris_engine, "run_process", run)
     with pytest.raises(OmrError, match="No pude leer la página"):
         AudiverisEngine(EXE).recognize(image, tmp_path)
     assert "No regularly spaced lines found" in caplog.text
 
 
 def test_sin_salida_es_error(monkeypatch, tmp_path, image):
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", fake_run(returncode=0))
+    monkeypatch.setattr(audiveris_engine, "run_process", fake_run(returncode=0))
     with pytest.raises(OmrError, match="No pude leer la página"):
         AudiverisEngine(EXE).recognize(image, tmp_path)
 
@@ -152,7 +152,7 @@ def test_tiempo_agotado(monkeypatch, tmp_path, image):
     def run(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
 
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", run)
+    monkeypatch.setattr(audiveris_engine, "run_process", run)
     with pytest.raises(OmrError, match="tardó demasiado"):
         AudiverisEngine(EXE, timeout=1).recognize(image, tmp_path)
 
@@ -161,7 +161,7 @@ def test_ejecutable_que_no_arranca(monkeypatch, tmp_path, image):
     def run(cmd, **kwargs):
         raise FileNotFoundError(cmd[0])
 
-    monkeypatch.setattr(audiveris_engine.subprocess, "run", run)
+    monkeypatch.setattr(audiveris_engine, "run_process", run)
     with pytest.raises(OmrError, match="no está disponible"):
         AudiverisEngine(EXE).recognize(image, tmp_path)
 

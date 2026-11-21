@@ -45,7 +45,7 @@ def fake_installed(monkeypatch):
 def test_devuelve_el_musicxml(monkeypatch, tmp_path, image):
     xml = page_xml(staves=2, measures=1)
     run = _fake_run(write=xml)
-    monkeypatch.setattr(oemer_engine.subprocess, "run", run)
+    monkeypatch.setattr(oemer_engine, "run_process", run)
 
     assert OemerEngine().recognize(image, tmp_path) == xml
     cmd, kwargs = run.calls[0]
@@ -62,14 +62,14 @@ def test_devuelve_el_musicxml(monkeypatch, tmp_path, image):
 
 def test_avisa_en_el_log_si_no_se_aplico_el_parche(monkeypatch, tmp_path, image, caplog):
     stderr = "otra línea\nPARCHE_OEMER_NO_APLICADO: AttributeError('x')\n"
-    monkeypatch.setattr(oemer_engine.subprocess, "run", _fake_run(write=page_xml(staves=1, measures=1), stderr=stderr))
+    monkeypatch.setattr(oemer_engine, "run_process", _fake_run(write=page_xml(staves=1, measures=1), stderr=stderr))
     OemerEngine().recognize(image, tmp_path)
     assert "sin la corrección de has_key" in caplog.text
 
 
 def test_falla_de_oemer_da_mensaje_en_espanol(monkeypatch, tmp_path, image, caplog):
     monkeypatch.setattr(
-        oemer_engine.subprocess, "run", _fake_run(returncode=1, stderr="IndexError: invalid index")
+        oemer_engine, "run_process", _fake_run(returncode=1, stderr="IndexError: invalid index")
     )
     with pytest.raises(OmrError) as err:
         OemerEngine().recognize(image, tmp_path)
@@ -79,7 +79,7 @@ def test_falla_de_oemer_da_mensaje_en_espanol(monkeypatch, tmp_path, image, capl
 
 
 def test_sin_archivo_de_salida_es_error(monkeypatch, tmp_path, image):
-    monkeypatch.setattr(oemer_engine.subprocess, "run", _fake_run(returncode=0, write=None))
+    monkeypatch.setattr(oemer_engine, "run_process", _fake_run(returncode=0, write=None))
     with pytest.raises(OmrError):
         OemerEngine().recognize(image, tmp_path)
 
@@ -88,7 +88,7 @@ def test_si_tarda_demasiado_se_cancela(monkeypatch, tmp_path, image):
     def run(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
 
-    monkeypatch.setattr(oemer_engine.subprocess, "run", run)
+    monkeypatch.setattr(oemer_engine, "run_process", run)
     with pytest.raises(OmrError) as err:
         OemerEngine().recognize(image, tmp_path)
     assert "tardó demasiado" in str(err.value)

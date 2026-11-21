@@ -13,9 +13,19 @@ Una entrada por tarea terminada, **la más nueva arriba de todo**. Formato:
 
 | Etapa | Fecha | Pruebas | Auditoría | Correcciones | PR |
 | --- | --- | --- | --- | --- | --- |
+| 1 | 2026-11-20 | OK: pytest 140/140, lint, build, humo, manual a 360/390/1280 px claro y oscuro; lectura real con IA 16/16 compases | Aprobada: 0 bloqueantes; 1 de seguridad a corregir (lectura de archivos de la IA) | E1-14 a E1-16, E1-26, E1-27 | Sin PR: fusión local en `main` |
 | 0 | 2026-11-20 | OK (pytest 3/3, lint, build, humo, 360 px) | Aprobada: 0 bloqueantes, 2 a corregir | E0-09, E0-10 | Sin PR: fusión local en `main` |
 
 ---
+
+### E1-26 y E1-27 — Correcciones de la auditoría final  (2026-11-20)
+- E1-26: el CLI de Claude corre con `--restricted`, `--tools Read`, `--add-dir` y `dontAsk`, sin regla allow amplia. Verificado: lee el archivo de la carpeta del trabajo y rechaza uno de afuera. Rechaza CLI `.cmd`/`.bat`. Pedido endurecido: el texto de la imagen son datos, no instrucciones; título recortado a 120 caracteres.
+- E1-27: `DELETE /api/jobs/{id}` (en cola: se saca; leyendo: se mata el proceso y sus hijos; terminado: 200 sin cambios). El frontend lo manda al tocar Cancelar.
+- pytest 140/140, lint y build OK.
+
+### E1-24 y E1-25 — Pruebas y auditoría finales de la Etapa 1  (2026-11-20)
+- Pruebas: pytest 127/127, lint, build, npm audit sin altas; manual a 360, 390 y 1280 px, claro y oscuro (reproducir, pausa, velocidad, zoom, volver); caminos de error en español.
+- Auditoría: aprobada. A corregir: lectura de archivos de la IA sin acotar (→ E1-26). Sugerencias: rechazar CLI `.cmd` (→ E1-26), Cancelar real (→ E1-27), texto de tiempo y docs (corregidos).
 
 ### E1-23 — Lector con IA (Claude Code CLI, solo desarrollo)  (2026-11-20)
 - `ClaudeEngine` + `claude_score.py`: Claude lee la foto y devuelve un JSON compacto (compases, pentagramas, voces, tresillos) que music21 pasa a MusicXML. Motor `claude+audiveris+oemer` con `OMR_USE_CLAUDE=1`.

@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .base import OmrError
+from .base import OmrError, run_process
 
 log = logging.getLogger(__name__)
 
@@ -55,16 +55,7 @@ class OemerEngine:
         _check_oemer_installed()
         cmd = build_command(image_path, out_dir)
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=TIMEOUT_SECONDS,
-                cwd=str(BACKEND_DIR),
-                env=_runner_env(),
-            )
+            proc = run_process(cmd, timeout=TIMEOUT_SECONDS, cwd=str(BACKEND_DIR), env=_runner_env())
         except subprocess.TimeoutExpired as exc:
             log.warning("oemer superó %s s con %s", TIMEOUT_SECONDS, image_path)
             raise OmrError("La lectura tardó demasiado y se canceló.") from exc

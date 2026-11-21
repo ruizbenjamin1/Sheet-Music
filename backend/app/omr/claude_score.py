@@ -26,6 +26,8 @@ log = logging.getLogger(__name__)
 
 PITCH_PATTERN = r"^[A-G](##|#|bb|b)?[0-8]$"
 DURATION_PATTERN = r"^[0-9]+(/[0-9]+)?$"
+# Largo máximo del título leído: se muestra en la app (E1-26).
+MAX_TITLE_CHARS = 120
 
 _EVENT = {
     "type": "object",
@@ -302,14 +304,15 @@ def to_musicxml(data: dict) -> str:
     score = build_score(data)
     xml = GeneralObjectExporter(score).parse().decode("utf-8")
     title = data.get("title")
-    title = title.strip() if isinstance(title, str) else ""
+    # Una línea y corto: se muestra en la app y no tiene que poder traer otra cosa (E1-26).
+    title = " ".join(title.split())[:MAX_TITLE_CHARS] if isinstance(title, str) else ""
     root = ET.fromstring(xml)
     for tag in ("work", "movement-number", "movement-title"):
         for el in root.findall(tag):
             root.remove(el)
     if title:
         work = ET.Element("work")
-        ET.SubElement(work, "work-title").text = title[:200]
+        ET.SubElement(work, "work-title").text = title
         root.insert(0, work)
         iden = root.find("identification")
         if iden is None:

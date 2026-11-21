@@ -13,13 +13,13 @@ import tempfile
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .merge import merge_pages
-from .omr import OmrEngine, OmrError
-from .omr.base import Notifier, notifying
+from .omr import OmrCancelled, OmrEngine, OmrError
+from .omr.base import CancelToken, Notifier, cancellable, notifying
 from .pages import SUFFIXES, InputError, kind_of_format, to_page_images
 from .preprocess import preprocess_file
 
@@ -32,6 +32,7 @@ MAX_PENDING_JOBS = 5
 MAX_FILENAME_CHARS = 200
 
 UNEXPECTED_ERROR = "Hubo un error inesperado al leer la partitura. Probá de nuevo o con otro archivo."
+CANCELLED = "Cancelaste la lectura."
 
 
 def _keep_copy_for_dev(job: "Job", data: bytes, fmt: str) -> None:
@@ -57,7 +58,7 @@ class QueueFullError(RuntimeError):
 class Job:
     id: str
     filename: str
-    status: str = "queued"  # queued | running | done | error
+    status: str = "queued"  # queued | running | done | error | cancelled
     message: str = "En la fila, esperando turno…"
     page: int = 0
     pages: int = 0
@@ -65,6 +66,18 @@ class Job:
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
     finished_at: float | None = None
+    # Internos (no van en la API): para cancelar.
+    token: CancelToken = field(default_factory=CancelToken, repr=False)
+    future: Future | None = field(default=None, repr=False)
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def update(self, **fields) -> None:
+        """Cambia campos del trabajo, salvo que ya esté cancelado (así nada pisa el "cancelled")."""
+        with self.lock:
+            if self.status == "cancelled":
+                return
+            for name, value in fields.items():
+                setattr(self, name, value)
 
     def public(self) -> dict:
         return {
@@ -127,53 +140,85 @@ class JobManager:
             if self._pending() >= self.max_pending:
                 raise QueueFullError()
             self._jobs[job.id] = job
-        self._pool.submit(self._run, job, data, fmt)
+        job.future = self._pool.submit(self._run, job, data, fmt)
         return job
 
     def get(self, job_id: str) -> Job | None:
         with self._lock:
             return self._jobs.get(job_id)
 
+    def cancel(self, job_id: str) -> Job | None:
+        """Cancela un trabajo. En cola: se saca. Leyendo: se mata el proceso del motor.
+
+        Si ya terminó (listo, con error o cancelado) no cambia nada. None si no existe.
+        """
+        job = self.get(job_id)
+        if job is None:
+            return None
+        with job.lock:
+            if job.status not in ("queued", "running"):
+                return job
+            job.status, job.message, job.error = "cancelled", CANCELLED, None
+            job.musicxml = None
+            job.finished_at = time.time()
+        if job.future is not None and job.future.cancel():
+            log.info("Trabajo %s cancelado antes de empezar", job.id)
+        else:
+            log.info("Trabajo %s cancelado mientras leía; corto el motor", job.id)
+        job.token.cancel()
+        return job
+
     def shutdown(self, wait: bool = True) -> None:
         self._pool.shutdown(wait=wait)
 
     def _run(self, job: Job, data: bytes, fmt: str) -> None:
+        if job.token.cancelled:  # se canceló justo cuando le tocaba el turno
+            return
         work_dir = Path(tempfile.mkdtemp(prefix="partitura_"))
         try:
-            job.status, job.message = "running", "Preparando páginas"
-            src = work_dir / f"upload{SUFFIXES[fmt]}"
-            src.write_bytes(data)
-            _keep_copy_for_dev(job, data, fmt)
-
-            kind = kind_of_format(fmt)
-            images = to_page_images(src, kind, work_dir / "pages")
-            if kind == "image":
-                # Solo fotos subidas: las páginas de un PDF ya vienen derechas y limpias.
-                job.message = "Enderezando la foto"
-                images = [_straighten_photo(images[0], work_dir, job.id)]
-            job.pages = len(images)
-
-            pages_xml = []
-            engine_warnings: list[str] = []
-            for i, image in enumerate(images, start=1):
-                job.page = i
-                job.message = f"Leyendo página {i} de {len(images)}"
-                with notifying(self._notifier(job, kind, i, len(images), engine_warnings)):
-                    pages_xml.append(self.engine.recognize(image, work_dir))
-
-            job.message = "Armando la partitura"
-            job.musicxml, merge_warnings = merge_pages(pages_xml)
-            job.warnings = engine_warnings + merge_warnings
-            job.status, job.message = "done", "Listo"
+            with cancellable(job.token):
+                self._read(job, data, fmt, work_dir)
+        except OmrCancelled:
+            log.info("Trabajo %s: lectura cortada porque se canceló", job.id)
         except (InputError, OmrError) as exc:
             log.info("Trabajo %s falló: %s", job.id, exc)
-            job.status, job.error, job.message = "error", str(exc), "Error"
+            job.update(status="error", error=str(exc), message="Error")
         except Exception:  # el detalle técnico va al log; el usuario ve un mensaje en español
             log.exception("Error inesperado en el trabajo %s", job.id)
-            job.status, job.error, job.message = "error", UNEXPECTED_ERROR, "Error"
+            job.update(status="error", error=UNEXPECTED_ERROR, message="Error")
         finally:
-            job.finished_at = time.time()
+            job.update(finished_at=time.time())
             shutil.rmtree(work_dir, ignore_errors=True)
+
+    def _read(self, job: Job, data: bytes, fmt: str, work_dir: Path) -> None:
+        job.update(status="running", message="Preparando páginas")
+        src = work_dir / f"upload{SUFFIXES[fmt]}"
+        src.write_bytes(data)
+        # Acá el formato ya está validado por sus bytes (check_upload en main.py).
+        _keep_copy_for_dev(job, data, fmt)
+
+        kind = kind_of_format(fmt)
+        images = to_page_images(src, kind, work_dir / "pages")
+        if kind == "image":
+            # Solo fotos subidas: las páginas de un PDF ya vienen derechas y limpias.
+            job.token.check()
+            job.update(message="Enderezando la foto")
+            images = [_straighten_photo(images[0], work_dir, job.id)]
+        job.update(pages=len(images))
+
+        pages_xml = []
+        engine_warnings: list[str] = []
+        for i, image in enumerate(images, start=1):
+            job.token.check()
+            job.update(page=i, message=f"Leyendo página {i} de {len(images)}")
+            with notifying(self._notifier(job, kind, i, len(images), engine_warnings)):
+                pages_xml.append(self.engine.recognize(image, work_dir))
+
+        job.token.check()
+        job.update(message="Armando la partitura")
+        musicxml, merge_warnings = merge_pages(pages_xml)
+        job.token.check()
+        job.update(musicxml=musicxml, warnings=engine_warnings + merge_warnings, status="done", message="Listo")
 
     @staticmethod
     def _notifier(job: Job, kind: str, page: int, pages: int, warnings: list[str]) -> Notifier:
@@ -186,7 +231,7 @@ class JobManager:
             subject = f"la página {page}"
 
         def progress(text: str) -> None:
-            job.message = text
+            job.update(message=text)
 
         def warning(text: str) -> None:
             if text not in warnings:

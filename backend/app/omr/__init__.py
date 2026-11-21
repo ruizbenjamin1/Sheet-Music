@@ -1,7 +1,7 @@
 import logging
 
 from .audiveris_engine import AudiverisEngine, find_audiveris
-from .base import OmrEngine, OmrError
+from .base import OmrCancelled, OmrEngine, OmrError
 from .claude_engine import ClaudeEngine, claude_enabled, find_claude_cli
 from .fallback_engine import AI_FALLBACK_PROGRESS, AI_FALLBACK_WARNING, FallbackEngine
 from .oemer_engine import OemerEngine
@@ -10,6 +10,7 @@ __all__ = [
     "AudiverisEngine",
     "ClaudeEngine",
     "FallbackEngine",
+    "OmrCancelled",
     "OmrEngine",
     "OmrError",
     "OemerEngine",

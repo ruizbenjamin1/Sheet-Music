@@ -4,6 +4,7 @@ Flujo:
   POST /api/jobs           -> sube el archivo, devuelve el id del trabajo
   GET  /api/jobs/{id}      -> estado y progreso
   GET  /api/jobs/{id}/musicxml -> resultado cuando está listo
+  DELETE /api/jobs/{id}    -> cancela la lectura (en cola o leyendo)
 """
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in allowed_origins if o.strip()],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -121,3 +122,12 @@ def job_result(job_id: str) -> Response:
     if job.musicxml is None:
         raise HTTPException(status_code=409, detail="Todavía no está listo.")
     return Response(content=job.musicxml, media_type="application/vnd.recordare.musicxml+xml")
+
+
+@app.delete("/api/jobs/{job_id}")
+def cancel_job(job_id: str) -> dict:
+    """En cola: se saca. Leyendo: se corta el motor. Ya terminado: queda como estaba."""
+    job = app.state.jobs.cancel(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="No encuentro ese trabajo (puede haber vencido).")
+    return job.public()

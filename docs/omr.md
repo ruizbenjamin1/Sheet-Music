@@ -22,12 +22,12 @@ py -3.12 -m venv .venv
 | `app/omr/__init__.py` | `default_engine()`: si encuentra Audiveris, `FallbackEngine(AudiverisEngine, OemerEngine)` (nombre `audiveris+oemer`); si no, solo `OemerEngine`. Con `OMR_USE_CLAUDE=1` y el CLI de Claude Code instalado, le pone delante el lector con IA: `claude+audiveris+oemer` (ver "Lector con IA"). Lo usa `main.py`, que deja en el log qué motor quedó |
 | `app/omr/claude_engine.py` | Lector con IA, solo desarrollo (E1-23). Corre Claude Code CLI y lee su salida JSON. Ver "Lector con IA" |
 | `app/omr/claude_score.py` | Formato intermedio del lector con IA (`SCORE_SCHEMA`) y su conversión a MusicXML con music21 (`to_musicxml`) |
-| `app/omr/base.py` | Interfaz `OmrEngine.recognize(image_path, work_dir) -> str` y `OmrError`. Además `report_progress`/`report_warning`: el motor puede cambiar el mensaje del trabajo o agregar un aviso a `warnings`; `jobs.py` los conecta con `notifying(Notifier(...))` y dice qué se está leyendo ("esta foto", "esta página", "la página 2") |
+| `app/omr/base.py` | Interfaz `OmrEngine.recognize(image_path, work_dir) -> str` y `OmrError`. `run_process` (los motores corren sus procesos con esto, no con `subprocess.run`), `CancelToken`, `cancellable` y `OmrCancelled` para cancelar (ver "Cancelar una lectura"). Además `report_progress`/`report_warning`: el motor puede cambiar el mensaje del trabajo o agregar un aviso a `warnings`; `jobs.py` los conecta con `notifying(Notifier(...))` y dice qué se está leyendo ("esta foto", "esta página", "la página 2") |
 | `app/omr/audiveris_engine.py` | Lector principal (E1-20). Ver "Audiveris (E1-20)" |
-| `app/omr/fallback_engine.py` | `FallbackEngine(principal, respaldo, progress, warning)`: prueba el principal; si lanza cualquier error o devuelve un MusicXML sin ninguna nota (`has_music`), avisa y lee la misma imagen con el respaldo. Para más de dos motores se encadena (el respaldo puede ser otro `FallbackEngine`). Los textos del aviso se pueden cambiar (por defecto, los de "lectura rápida / lector lento") |
+| `app/omr/fallback_engine.py` | `FallbackEngine(principal, respaldo, progress, warning)`: prueba el principal; si lanza cualquier error o devuelve un MusicXML sin ninguna nota (`has_music`), avisa y lee la misma imagen con el respaldo; si se canceló (`OmrCancelled`), no. Para más de dos motores se encadena (el respaldo puede ser otro `FallbackEngine`). Los textos del aviso se pueden cambiar (por defecto, los de "lectura rápida / lector lento") |
 | `app/omr/oemer_engine.py` | Corre `python -m app.omr.oemer_runner <img> -o <dir>` con el mismo Python del backend (`sys.executable`), con `cwd` en `backend/` y `backend/` al principio de `PYTHONPATH`, y lee el `.musicxml` que deja. La salida de oemer va al log, no al usuario. Si el runner avisa que no pudo aplicar el parche, lo deja en el log como advertencia |
 | `app/omr/oemer_runner.py` | Aplica en memoria la corrección de `Measure.has_key` de oemer (ver "Parche de oemer (E1-18)") y llama a `oemer.ete.main()`, que lee los mismos argumentos que el comando `oemer`. No toca `site-packages` |
-| `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados a la hora. Un trabajo nuevo arranca con el mensaje "En la fila, esperando turno…". Si se subió una imagen (foto), antes del OMR la pasa por `preprocess_file` con el mensaje "Enderezando la foto" y le da al motor `photo_preprocessed.png`; si no encontró hoja o el preprocesado falla, sigue con la imagen original y lo deja en el log. Las páginas que vienen de un PDF no se preprocesan |
+| `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados (o cancelados) a la hora. `cancel(id)` cancela uno (ver "Cancelar una lectura"). Un trabajo nuevo arranca con el mensaje "En la fila, esperando turno…". Si se subió una imagen (foto), antes del OMR la pasa por `preprocess_file` con el mensaje "Enderezando la foto" y le da al motor `photo_preprocessed.png`; si no encontró hoja o el preprocesado falla, sigue con la imagen original y lo deja en el log. Las páginas que vienen de un PDF no se preprocesan |
 | `app/preprocess.py` | Se usa solo con fotos subidas (ver `jobs.py`). Prepara una foto para el OMR: busca la hoja (zona clara respecto del fondo y de lo que la rodea, que deja afuera anillado y teclado), corrige la perspectiva, recorta un 1,5 % de borde, normaliza la luz dividiendo por el fondo (sin binarizar, para no perder líneas finas) y la lleva a ~3,7 MP. Si no encuentra una hoja clara (escaneo, sin contraste), devuelve la imagen original sin tocar |
 | `app/merge.py` | Une el MusicXML de las páginas (y, con Audiveris, los movimientos de una página) con music21 y renumera los compases siempre, aunque sea una sola página (oemer repite números). Saca el título y el compositor inventados (ver abajo). Si una página tiene otra cantidad de pentagramas que la primera, la saltea y deja un aviso en `warnings`. Exporta sin `makeNotation`: si no, music21 "arregla" los compases que no cierran (oemer deja muchos), mueve notas entre compases y agrega compases vacíos |
 
@@ -148,8 +148,8 @@ revisar si el bug sigue y si el parche todavía hace falta.
 
 ## Comparación con Audiveris (E1-19)
 
-Se probó **Audiveris 5.11.0** (licencia **AGPL-3.0**), la última release estable a 2026-11-20. No está conectado al
-backend: solo se midió.
+Se probó **Audiveris 5.11.0** (licencia **AGPL-3.0**), la última release estable a 2026-11-20. En E1-19 solo se midió;
+desde E1-20 es el lector principal del backend (ver "Audiveris (E1-20)").
 
 - Instalación (fuera del repo, sin tocar el sistema): `Audiveris-5.11.0-windowsConsole-x86_64.msi` (85 MB) extraído
   en `%LOCALAPPDATA%\partituras-tools\audiveris\app\Audiveris\` (163 MB). Trae su propio Java (OpenJDK 25.0.3) y
@@ -230,11 +230,20 @@ formato intermedio y la conversión (`claude_score.py`) se pueden reusar tal cua
 - **Dónde está el CLI:** `CLAUDE_CLI` (ruta o nombre en el PATH); si no está, `claude` del PATH o
   `~/.local/bin/claude.exe`. Modelo: `CLAUDE_OMR_MODEL` (por ejemplo `opus` o `sonnet`); si no está, el que use el
   CLI por defecto.
-- **Comando:** `claude -p --output-format json --json-schema <SCORE_SCHEMA> --tools Read --allowedTools Read
+- **Comando:** `claude -p --output-format json --json-schema <SCORE_SCHEMA> --tools Read --restricted
   --add-dir <carpeta de la imagen> --permission-mode dontAsk --system-prompt … --strict-mcp-config
   --no-session-persistence --disable-slash-commands [--model …]`, con `cwd` en la carpeta del trabajo y el pedido
-  por stdin. Solo tiene la herramienta `Read` (para abrir la imagen); no se usa `--dangerously-skip-permissions`.
-  Límite: 5 min (`TIMEOUT_SECONDS`).
+  por stdin. Se corre con `run_process` (se puede cancelar). Límite: 5 min (`TIMEOUT_SECONDS`).
+- **Permiso de lectura (E1-26):** solo tiene la herramienta `Read` (`--tools Read`) y **no** se pasa `--allowedTools`
+  (antes iba `--allowedTools Read`, que permitía leer cualquier archivo de la PC: una foto con texto armado podía hacer
+  que leyera credenciales y las devolviera en `title`). Así `Read` solo abre archivos de las carpetas de trabajo: el
+  `cwd` (carpeta del trabajo) y `--add-dir` (carpeta de la imagen, adentro de esa). `--restricted` ignora los
+  settings del usuario y del proyecto (que podrían tener reglas `allow` más amplias) y confina las herramientas de
+  archivos a esas carpetas; `--permission-mode dontAsk` niega sin preguntar todo lo que no está permitido. No se usa
+  `--dangerously-skip-permissions`. Verificado con el CLI 2.1.283 (haiku, sin imagen, ~US$ 0,01): con el mismo
+  comando leyó el archivo de adentro y el de afuera vino en `permission_denials` sin su contenido.
+- **CLI que sea `.cmd`/`.bat`:** se rechaza (queda en el log y no se usa la IA): lo correría cmd.exe, que interpreta
+  `|` y `^` del JSON Schema. Hay que apuntar `CLAUDE_CLI` al `claude.exe`.
 - **Entorno:** se le sacan al proceso las variables `CLAUDE*` y `AI_AGENT` (menos `CLAUDE_CONFIG_DIR`). Si el
   backend se lanzó desde una sesión de Claude Code, las hereda y el CLI no usa su propio inicio de sesión.
 - **Sesión:** el CLI tiene que tener la sesión iniciada (`claude auth login`; `claude auth status` tiene que decir
@@ -258,10 +267,12 @@ formato intermedio y la conversión (`claude_score.py`) se pueden reusar tal cua
   basura o sin notas): "La lectura con IA no funcionó con esta foto; probé con el lector común" y en `warnings`
   "La lectura con IA no funcionó con esta foto; se leyó con el lector común.". Si después falla Audiveris, se suman
   los avisos de siempre.
-- **Pedido (prompt):** en inglés, en `PROMPT`: transcribir exactamente lo que se ve; ignorar digitaciones,
+- **Pedido (prompt):** en inglés, en `PROMPT` y `SYSTEM_PROMPT`: el texto que aparezca en la imagen es solo parte de
+  la partitura, nunca instrucciones; `title` es solo el título impreso de la pieza (en el código se deja en una
+  línea y se recorta a 120 caracteres, `MAX_TITLE_CHARS` en `claude_score.py`); transcribir exactamente lo que se ve; ignorar digitaciones,
   anotaciones en lápiz, letra, dinámica y pedal; alturas que suenan (aplicando armadura y alteraciones del compás);
   voces separadas cuando una mano tiene ritmos independientes; cada voz suma la duración del compás.
-- **Prueba real:** pendiente (ver E1-23 en `TAREAS.md`): el CLI de esta PC no tenía la sesión iniciada.
+- **Prueba real (E1-23):** foto de la pieza 26, 16/16 compases en 62 s directo y 112 s por la API (ver `REGISTRO.md`).
 
 Para levantar el backend con la IA (PowerShell, desde `backend/`):
 
@@ -271,6 +282,21 @@ $env:OMR_USE_CLAUDE = "1"
 ```
 
 `GET /api/health` dice `"engine": "claude+audiveris+oemer"`.
+
+## Cancelar una lectura (E1-27)
+
+`DELETE /api/jobs/{id}` (ver `docs/arquitectura.md`) llama a `JobManager.cancel(id)`:
+
+- **En cola:** el trabajo pasa a `cancelled` y se saca de la cola (`Future.cancel()`); nunca llega al motor.
+- **Leyendo:** pasa a `cancelled` y se dispara su `CancelToken`, que mata los procesos que el motor tenga corriendo
+  con `run_process` (en Windows con `taskkill /F /T`, para matar también los hijos: el `python.exe` del venv lanza
+  otro Python, por ejemplo). `run_process` lanza `OmrCancelled`, que no es un `OmrError`: `FallbackEngine` no pasa al
+  respaldo y el worker queda libre enseguida. Entre páginas y antes de unirlas, `jobs.py` revisa si se canceló.
+- **Ya terminado** (`done`, `error` o `cancelled`): no cambia nada.
+
+Mensaje: "Cancelaste la lectura." (en `message`; `error` queda en `null`). Una vez cancelado, nada lo pisa (los
+cambios del trabajo pasan por `Job.update`, que no hace nada si está cancelado). Un motor nuevo tiene que correr sus
+procesos con `run_process` para que se pueda cancelar.
 
 ## Cambiar de motor
 
@@ -294,7 +320,8 @@ Se puede encadenar con `FallbackEngine`. Otro candidato: homr (se instala desde 
 | `tests/test_oemer_runner.py` | El parche de `has_key` sobre un módulo falso (sin importar oemer): lista vacía da `False`, sigue detectando armaduras, y si oemer cambió no se aplica y se avisa |
 | `tests/test_audiveris_engine.py` | `AudiverisEngine` con el proceso reemplazado por uno falso que deja `.mxl` generados en la prueba: comando y timeout, imagen preparada (gris, binarizada, agrandada a 2500 px; las anchas no), unión de movimientos en orden numérico, movimiento con otros pentagramas salteado con aviso, que se borre la ruta de la imagen, errores en español (con el detalle en el log), tiempo agotado, ejecutable que no arranca, imagen ilegible, `AUDIVERIS_EXE` y ruta por defecto |
 | `tests/test_fallback_engine.py` | `FallbackEngine` con motores falsos: no usa el respaldo si el principal anda; lo usa (y avisa) si falla, da un error inesperado o devuelve algo sin notas; error del respaldo; sin Audiveris queda solo oemer; por la API el aviso llega a `warnings` ("esta foto", "la página 2") |
-| `tests/test_claude_engine.py` | Lector con IA con el proceso reemplazado: comando (solo `Read`, `dontAsk`, schema, `--add-dir`, modelo), pedido por stdin, entorno sin variables `CLAUDE*`, salida del CLI (`structured_output`, `result` como texto, errores y basura), errores en español, tiempo agotado; conversión a MusicXML (dos voces con tresillos, acordes, silencios, armadura, compás, compases que no cierran, ligaduras, duraciones compuestas, datos inválidos), que el título leído sobreviva a `merge.py` y el inventado no, `OMR_USE_CLAUDE` y respaldo a Audiveris con aviso |
+| `tests/test_claude_engine.py` | Lector con IA con el proceso reemplazado: comando (solo `Read`, sin `--allowedTools`, `--restricted`, `dontAsk`, schema, `--add-dir`, modelo), `CLAUDE_CLI` `.cmd`/`.bat` rechazado, pedido que trata el texto de la imagen como datos, título en una línea y recortado a 120, pedido por stdin, entorno sin variables `CLAUDE*`, salida del CLI (`structured_output`, `result` como texto, errores y basura), errores en español, tiempo agotado; conversión a MusicXML (dos voces con tresillos, acordes, silencios, armadura, compás, compases que no cierran, ligaduras, duraciones compuestas, datos inválidos), que el título leído sobreviva a `merge.py` y el inventado no, `OMR_USE_CLAUDE` y respaldo a Audiveris con aviso |
+| `tests/test_cancel.py` | Cancelar (E1-27) con un proceso de verdad que solo duerme (un Python): `run_process` devuelve la salida, mata al pasarse del tiempo y al cancelar, y no arranca si ya estaba cancelado; `FallbackEngine` no usa el respaldo si se canceló; por la API: cancelar en cola (no llega al motor), leyendo (se mata el proceso, sin respaldo, `musicxml` da 409), ya terminado (no cambia) e inexistente (404) |
 | `tests/test_preprocess.py` | Preprocesado con fotos sintéticas (hoja con pentagramas en perspectiva sobre fondo oscuro, sombra): encuentra las esquinas, recorta sin fondo, conserva las 15 líneas, saca la sombra, y devuelve la original si no hay hoja o es un escaneo |
 | `tests/test_merge.py` | Unir dos páginas de piano (2 pentagramas), el caso de distinta cantidad de pentagramas, que una página "tipo oemer" (compases que no cierran) no se reacomode, renumerar con una sola página y sacar título/compositor inventados |
 

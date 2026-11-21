@@ -2,7 +2,8 @@
 
 Hoy: Audiveris (~10–60 s por página) y, de respaldo, oemer (~5 min por página). Con el lector con IA
 activado (`OMR_USE_CLAUDE=1`) se encadenan: Claude -> (Audiveris -> oemer), con otros mensajes.
-"Falla" es: lanza un error, o devuelve un MusicXML sin compases o sin ninguna nota.
+"Falla" es: lanza un error, o devuelve un MusicXML sin compases o sin ninguna nota. Si el usuario canceló
+(`OmrCancelled`), no se usa el respaldo.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from .base import OmrEngine, current_subject, report_progress, report_warning
+from .base import OmrCancelled, OmrEngine, check_cancelled, current_subject, report_progress, report_warning
 
 log = logging.getLogger(__name__)
 
@@ -51,10 +52,13 @@ class FallbackEngine:
             if has_music(xml):
                 return xml
             log.warning("%s no encontró notas en %s; paso a %s", self.primary.name, image_path, self.fallback.name)
+        except OmrCancelled:  # el usuario canceló: no se prueba con el respaldo
+            raise
         except Exception:  # cualquier falla del principal: se intenta con el respaldo
             log.warning(
                 "%s falló con %s; paso a %s", self.primary.name, image_path, self.fallback.name, exc_info=True
             )
+        check_cancelled()
         subject = current_subject()
         report_progress(self.progress.format(subject=subject))
         report_warning(self.warning.format(subject=subject))

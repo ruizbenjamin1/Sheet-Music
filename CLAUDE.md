@@ -20,7 +20,7 @@ Plan completo: [App de partituras para piano — Plan del proyecto](https://clau
 | Partitura | OpenSheetMusicDisplay (OSMD) | Dibuja MusicXML |
 | Sonido | Tone.js + samples Salamander Grand (CC-BY 3.0) | Piano realista en el navegador |
 | Back | FastAPI (Python 3.12) | API de lectura |
-| OMR | Audiveris 5.11 (principal, ~10–30 s por página) con oemer de respaldo, detrás de la interfaz `OmrEngine` | Benjamin pidió lectura rápida sin depender de placa de video. Audiveris se instala aparte (no por pip); oemer tarda ~5 min por página. Los dos son AGPL o MIT: ver E1-13 |
+| OMR | En desarrollo: Claude vía Claude Code CLI local (`OMR_USE_CLAUDE=1`, ~1–2 min por página, el que mejor lee) → Audiveris 5.11 (~10–30 s) → oemer de respaldo, detrás de la interfaz `OmrEngine` | Benjamin pidió lectura rápida sin depender de placa de video. Audiveris se instala aparte (no por pip); oemer tarda ~5 min por página. Los dos son AGPL o MIT: ver E1-13 |
 | PDF → imagen | PyMuPDF | |
 | Unir páginas / análisis | music21 | |
 

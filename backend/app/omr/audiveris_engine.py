@@ -31,7 +31,7 @@ import numpy as np
 
 from ..merge import merge_pages
 from ..preprocess import normalize_light
-from .base import OmrError, current_subject, report_warning
+from .base import OmrError, current_subject, report_warning, run_process
 
 log = logging.getLogger(__name__)
 
@@ -185,15 +185,7 @@ class AudiverisEngine:
 
         cmd = build_command(self.exe, prepared, out_dir)
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self.timeout,
-                cwd=str(out_dir),
-            )
+            proc = run_process(cmd, timeout=self.timeout, cwd=str(out_dir))
         except subprocess.TimeoutExpired as exc:
             log.warning("Audiveris superó %s s con %s", self.timeout, image_path)
             raise OmrError("La lectura tardó demasiado y se canceló.") from exc
