@@ -19,18 +19,46 @@ INVENTED_COMPOSERS = {"transcribed by oemer", "music21"}
 XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>' + chr(10)
 
 
-def _drop_invented_metadata(xml: str) -> str:
+# Marca que deja el lector con IA (`omr/claude_score.py`) cuando el título lo leyó de la hoja.
+TITLE_READ_FIELD = "omr-title-read"
+
+
+def read_title(xml: str) -> str | None:
+    """El título de la página si está marcado como leído de la hoja (lector con IA); si no, None."""
+    try:
+        root = ET.fromstring(xml.encode("utf-8") if isinstance(xml, str) else xml)
+    except ET.ParseError:
+        return None
+    marked = any(
+        f.get("name") == TITLE_READ_FIELD for f in root.iter("miscellaneous-field")
+    )
+    title = (root.findtext("work/work-title") or "").strip()
+    return title if marked and title else None
+
+
+def _drop_invented_metadata(xml: str, title: str | None = None) -> str:
     """Saca el título y el compositor que inventan el motor y music21.
 
     oemer pone como título el nombre de la imagen temporal ("Upload", "Page_01") y como
     compositor "Transcribed by Oemer"; music21 completa con "Music21 Fragment" y "Music21".
     El OMR no lee títulos, así que el título queda vacío y el frontend muestra el nombre
-    del archivo.
+    del archivo. La excepción es `title`: el que leyó el lector con IA de la hoja.
     """
     root = ET.fromstring(xml)
     for tag in ("work", "movement-number", "movement-title"):
         for el in root.findall(tag):
             root.remove(el)
+    for iden in root.findall("identification"):
+        for misc in iden.findall("miscellaneous"):
+            for field in misc.findall("miscellaneous-field"):
+                if field.get("name") == TITLE_READ_FIELD:
+                    misc.remove(field)
+            if len(misc) == 0:
+                iden.remove(misc)
+    if title:
+        work = ET.Element("work")
+        ET.SubElement(work, "work-title").text = title
+        root.insert(0, work)
     for iden in root.findall("identification"):
         for creator in iden.findall("creator"):
             if (creator.text or "").strip().lower() in INVENTED_COMPOSERS:
@@ -54,6 +82,7 @@ def merge_pages(pages_xml: list[str], skipped_message: str = SKIPPED_PAGE) -> tu
         raise ValueError("merge_pages necesita al menos una página")
 
     warnings: list[str] = []
+    title = read_title(pages_xml[0])
     scores = [converter.parseData(xml, format="musicxml") for xml in pages_xml]
     base = scores[0]
     base_parts = list(base.parts)
@@ -78,4 +107,4 @@ def merge_pages(pages_xml: list[str], skipped_message: str = SKIPPED_PAGE) -> tu
     exporter = GeneralObjectExporter(base)
     exporter.makeNotation = False
     xml_bytes = exporter.parse()
-    return _drop_invented_metadata(xml_bytes.decode("utf-8")), warnings
+    return _drop_invented_metadata(xml_bytes.decode("utf-8"), title), warnings

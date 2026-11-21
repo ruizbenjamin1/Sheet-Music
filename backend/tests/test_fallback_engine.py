@@ -88,12 +88,14 @@ def test_nombre_compuesto():
 
 
 def test_sin_audiveris_queda_solo_oemer(monkeypatch):
+    monkeypatch.delenv("OMR_USE_CLAUDE", raising=False)
     monkeypatch.setattr(omr, "find_audiveris", lambda: None)
     engine = omr.default_engine()
     assert isinstance(engine, OemerEngine) and engine.name == "oemer"
 
 
 def test_con_audiveris_usa_el_respaldo(monkeypatch, tmp_path):
+    monkeypatch.delenv("OMR_USE_CLAUDE", raising=False)
     monkeypatch.setattr(omr, "find_audiveris", lambda: tmp_path / "Audiveris.exe")
     engine = omr.default_engine()
     assert isinstance(engine, FallbackEngine) and engine.name == "audiveris+oemer"

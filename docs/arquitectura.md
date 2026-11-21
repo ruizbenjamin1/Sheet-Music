@@ -18,7 +18,7 @@ Todas las rutas empiezan con `/api`. Los errores vienen como `{"detail": "<mensa
 
 | Método y ruta | Qué hace | Respuesta |
 | --- | --- | --- |
-| `GET /api/health` | Comprueba que el backend está vivo y qué lector usa | `{"ok": true, "engine": "audiveris+oemer"}` (Audiveris con oemer de respaldo), o `"oemer"` si Audiveris no está instalado |
+| `GET /api/health` | Comprueba que el backend está vivo y qué lector usa | `{"ok": true, "engine": "audiveris+oemer"}` (Audiveris con oemer de respaldo), o `"oemer"` si Audiveris no está instalado. En desarrollo, con `OMR_USE_CLAUDE=1`, `"claude+audiveris+oemer"` (lector con IA primero) |
 | `POST /api/jobs` | Sube un archivo (`multipart`, campo `file`). PDF, PNG, JPG o WEBP, hasta 20 MB y 10 páginas | `202` con el trabajo |
 | `GET /api/jobs/{id}` | Estado del trabajo | el trabajo |
 | `GET /api/jobs/{id}/musicxml` | Resultado | MusicXML (`409` si no está listo) |

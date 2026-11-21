@@ -19,10 +19,12 @@ py -3.12 -m venv .venv
 | `app/main.py` | Rutas de la API (ver `docs/arquitectura.md`). Lee la subida por partes y revisa los primeros bytes |
 | `app/upload_limit.py` | Middleware que corta `POST /api/jobs` apenas pasa los 20 MB (por `Content-Length` o contando bytes) |
 | `app/pages.py` | Valida el tipo (nombre/content-type y primeros bytes: `%PDF`, PNG, JPEG, WEBP) y convierte PDF a PNG en gris a 300 ppp (PyMuPDF), bajando los ppp si la página es tan grande que el lado mayor pasaría de 5000 px (`PDF_MAX_SIDE_PX`). Máximo 10 páginas. Rechaza PDF dañados o con contraseña. Las imágenes se revisan leyendo solo el encabezado (PNG, JPEG, WEBP), sin decodificarlas: más de 60 megapíxeles (`MAX_IMAGE_PIXELS`) o tamaño ilegible es error. Ver "Tope de píxeles" |
-| `app/omr/__init__.py` | `default_engine()`: si encuentra Audiveris, `FallbackEngine(AudiverisEngine, OemerEngine)` (nombre `audiveris+oemer`); si no, solo `OemerEngine`. Lo usa `main.py`, que deja en el log qué motor quedó |
+| `app/omr/__init__.py` | `default_engine()`: si encuentra Audiveris, `FallbackEngine(AudiverisEngine, OemerEngine)` (nombre `audiveris+oemer`); si no, solo `OemerEngine`. Con `OMR_USE_CLAUDE=1` y el CLI de Claude Code instalado, le pone delante el lector con IA: `claude+audiveris+oemer` (ver "Lector con IA"). Lo usa `main.py`, que deja en el log qué motor quedó |
+| `app/omr/claude_engine.py` | Lector con IA, solo desarrollo (E1-23). Corre Claude Code CLI y lee su salida JSON. Ver "Lector con IA" |
+| `app/omr/claude_score.py` | Formato intermedio del lector con IA (`SCORE_SCHEMA`) y su conversión a MusicXML con music21 (`to_musicxml`) |
 | `app/omr/base.py` | Interfaz `OmrEngine.recognize(image_path, work_dir) -> str` y `OmrError`. Además `report_progress`/`report_warning`: el motor puede cambiar el mensaje del trabajo o agregar un aviso a `warnings`; `jobs.py` los conecta con `notifying(Notifier(...))` y dice qué se está leyendo ("esta foto", "esta página", "la página 2") |
 | `app/omr/audiveris_engine.py` | Lector principal (E1-20). Ver "Audiveris (E1-20)" |
-| `app/omr/fallback_engine.py` | `FallbackEngine(principal, respaldo)`: prueba el principal; si lanza cualquier error o devuelve un MusicXML sin ninguna nota (`has_music`), avisa y lee la misma imagen con el respaldo |
+| `app/omr/fallback_engine.py` | `FallbackEngine(principal, respaldo, progress, warning)`: prueba el principal; si lanza cualquier error o devuelve un MusicXML sin ninguna nota (`has_music`), avisa y lee la misma imagen con el respaldo. Para más de dos motores se encadena (el respaldo puede ser otro `FallbackEngine`). Los textos del aviso se pueden cambiar (por defecto, los de "lectura rápida / lector lento") |
 | `app/omr/oemer_engine.py` | Corre `python -m app.omr.oemer_runner <img> -o <dir>` con el mismo Python del backend (`sys.executable`), con `cwd` en `backend/` y `backend/` al principio de `PYTHONPATH`, y lee el `.musicxml` que deja. La salida de oemer va al log, no al usuario. Si el runner avisa que no pudo aplicar el parche, lo deja en el log como advertencia |
 | `app/omr/oemer_runner.py` | Aplica en memoria la corrección de `Measure.has_key` de oemer (ver "Parche de oemer (E1-18)") y llama a `oemer.ete.main()`, que lee los mismos argumentos que el comando `oemer`. No toca `site-packages` |
 | `app/jobs.py` | Cola en memoria con un solo worker y hasta 5 trabajos pendientes (si no, 503). El archivo temporal se llama `upload.pdf/.png/.jpg/.webp` según el formato real, nunca según el nombre del usuario. Borra trabajos terminados a la hora. Un trabajo nuevo arranca con el mensaje "En la fila, esperando turno…". Si se subió una imagen (foto), antes del OMR la pasa por `preprocess_file` con el mensaje "Enderezando la foto" y le da al motor `photo_preprocessed.png`; si no encontró hoja o el preprocesado falla, sigue con la imagen original y lo deja en el log. Las páginas que vienen de un PDF no se preprocesan |
@@ -36,6 +38,10 @@ oemer escribe como título (`<work-title>`) el nombre de la imagen temporal (`Up
 si no hay nada). Ninguno es real: el OMR no lee títulos. `merge.py` borra `<work>`, `<movement-title>`,
 `<movement-number>` y los `<creator>` con esos compositores inventados. Sin título, el frontend muestra el nombre del
 archivo (en el encabezado de `App.tsx`; `ScoreView.tsx` carga con `osmd.load(xml, '')` para que OSMD no ponga "Untitled Score").
+
+Excepción (E1-23): el lector con IA sí lee el título impreso. Lo deja en `<work-title>` con la marca
+`<miscellaneous-field name="omr-title-read">` en `<identification>`. Si la primera página trae esa marca, `merge.py`
+conserva ese título (y saca la marca); todo lo demás se borra igual que siempre.
 
 ### Tope de píxeles (E1-15)
 
@@ -208,6 +214,64 @@ como servicio con Audiveris, hay que publicar el código del backend o sacarlo.
 
 Con oemer cada una tardaba ~5 min.
 
+## Lector con IA (Claude Code CLI, solo desarrollo)
+
+E1-23. Los lectores gratuitos leen bien las alturas pero rompen el ritmo cuando una mano tiene dos voces (por ejemplo
+tresillos de corcheas arriba y una negra sostenida abajo en el mismo pentagrama). Una prueba a mano con la visión de
+Claude leyó bien esos compases. Para probarlo sin clave de API, `ClaudeEngine` usa **Claude Code CLI instalado en la
+PC, con la cuenta de quien corre el backend**.
+
+**Esto es solo para desarrollo.** Usa la cuenta personal de Benjamin; no sirve para una app publicada. Para publicar
+hay que pasar a la API de Anthropic (con clave, costo por uso y presupuesto, que todavía no están definidos). El
+formato intermedio y la conversión (`claude_score.py`) se pueden reusar tal cual; solo cambia cómo se llama al modelo.
+
+- **Se activa solo a propósito:** variable `OMR_USE_CLAUDE=1` y el CLI encontrado. Si no, queda como antes
+  (Audiveris → oemer). Con la variable pero sin CLI, queda en el log y sigue como antes.
+- **Dónde está el CLI:** `CLAUDE_CLI` (ruta o nombre en el PATH); si no está, `claude` del PATH o
+  `~/.local/bin/claude.exe`. Modelo: `CLAUDE_OMR_MODEL` (por ejemplo `opus` o `sonnet`); si no está, el que use el
+  CLI por defecto.
+- **Comando:** `claude -p --output-format json --json-schema <SCORE_SCHEMA> --tools Read --allowedTools Read
+  --add-dir <carpeta de la imagen> --permission-mode dontAsk --system-prompt … --strict-mcp-config
+  --no-session-persistence --disable-slash-commands [--model …]`, con `cwd` en la carpeta del trabajo y el pedido
+  por stdin. Solo tiene la herramienta `Read` (para abrir la imagen); no se usa `--dangerously-skip-permissions`.
+  Límite: 5 min (`TIMEOUT_SECONDS`).
+- **Entorno:** se le sacan al proceso las variables `CLAUDE*` y `AI_AGENT` (menos `CLAUDE_CONFIG_DIR`). Si el
+  backend se lanzó desde una sesión de Claude Code, las hereda y el CLI no usa su propio inicio de sesión.
+- **Sesión:** el CLI tiene que tener la sesión iniciada (`claude auth login`; `claude auth status` tiene que decir
+  `"loggedIn": true`). Si no, devuelve `is_error: true` ("Failed to authenticate…") en ~2 s y se pasa a Audiveris.
+- **Salida:** el CLI devuelve un objeto `{"type": "result", "is_error": …, "result": "<texto>",
+  "structured_output": {…}}`. Se usa `structured_output`; si no viene, se intenta leer `result` como JSON (también
+  dentro de un bloque de código `json`). `is_error`, salida vacía o que no es JSON: error.
+- **Formato intermedio** (`SCORE_SCHEMA`): `title` (o `null`), `time` (`beats`, `beat_type`, `symbol`
+  `normal`/`common`/`cut`), `fifths` (−7 a 7), `clefs` (`treble`/`bass` por pentagrama, de arriba abajo) y
+  `measures`: por compás, `staves` (uno por pentagrama, con `clef` opcional si cambia) y en cada uno `voices`; cada
+  voz con `events`: `pitches` (alturas que suenan, `C4`, `F#4`, `Bb3`; lista vacía = silencio), `duration` (en
+  negras, como fracción: `"1"`, `"1/2"`, `"3/2"`, `"1/3"` = corchea de tresillo) y `tie` (ligada a la siguiente).
+- **Conversión** (`to_musicxml`): una parte de piano con un `PartStaff` por clave y llave, una `stream.Voice` por voz
+  si hay más de una (plicas arriba la 1, abajo la 2), acordes con `Chord`, tresillos con `Fraction(1, 3)`. Cada voz
+  tiene que llenar el compás: si le falta, se completa con un silencio; si le sobra, se recorta lo que pasa de la
+  barra. Alturas o duraciones inválidas se saltean. Todo eso va al log como advertencia. Duraciones que no son una
+  figura sola (por ejemplo 5/4) se parten en figuras ligadas. Se exporta con `makeNotation` (barras, corchetes de
+  tresillo, alteraciones), porque acá los compases ya cierran; después `jobs.py` lo pasa por `merge_pages` como
+  siempre (renumera, saca metadatos inventados).
+- **Mensajes:** mientras lee, "Leyendo con IA… puede tardar un par de minutos". Si falla (error, tiempo agotado,
+  basura o sin notas): "La lectura con IA no funcionó con esta foto; probé con el lector común" y en `warnings`
+  "La lectura con IA no funcionó con esta foto; se leyó con el lector común.". Si después falla Audiveris, se suman
+  los avisos de siempre.
+- **Pedido (prompt):** en inglés, en `PROMPT`: transcribir exactamente lo que se ve; ignorar digitaciones,
+  anotaciones en lápiz, letra, dinámica y pedal; alturas que suenan (aplicando armadura y alteraciones del compás);
+  voces separadas cuando una mano tiene ritmos independientes; cada voz suma la duración del compás.
+- **Prueba real:** pendiente (ver E1-23 en `TAREAS.md`): el CLI de esta PC no tenía la sesión iniciada.
+
+Para levantar el backend con la IA (PowerShell, desde `backend/`):
+
+```powershell
+$env:OMR_USE_CLAUDE = "1"
+.\.venv\Scripts\python -m uvicorn app.main:app --port 8000
+```
+
+`GET /api/health` dice `"engine": "claude+audiveris+oemer"`.
+
 ## Cambiar de motor
 
 Crear otra clase con `name` y `recognize(...)` en `app/omr/` y armarla en `default_engine()` (`app/omr/__init__.py`).
@@ -230,6 +294,7 @@ Se puede encadenar con `FallbackEngine`. Otro candidato: homr (se instala desde 
 | `tests/test_oemer_runner.py` | El parche de `has_key` sobre un módulo falso (sin importar oemer): lista vacía da `False`, sigue detectando armaduras, y si oemer cambió no se aplica y se avisa |
 | `tests/test_audiveris_engine.py` | `AudiverisEngine` con el proceso reemplazado por uno falso que deja `.mxl` generados en la prueba: comando y timeout, imagen preparada (gris, binarizada, agrandada a 2500 px; las anchas no), unión de movimientos en orden numérico, movimiento con otros pentagramas salteado con aviso, que se borre la ruta de la imagen, errores en español (con el detalle en el log), tiempo agotado, ejecutable que no arranca, imagen ilegible, `AUDIVERIS_EXE` y ruta por defecto |
 | `tests/test_fallback_engine.py` | `FallbackEngine` con motores falsos: no usa el respaldo si el principal anda; lo usa (y avisa) si falla, da un error inesperado o devuelve algo sin notas; error del respaldo; sin Audiveris queda solo oemer; por la API el aviso llega a `warnings` ("esta foto", "la página 2") |
+| `tests/test_claude_engine.py` | Lector con IA con el proceso reemplazado: comando (solo `Read`, `dontAsk`, schema, `--add-dir`, modelo), pedido por stdin, entorno sin variables `CLAUDE*`, salida del CLI (`structured_output`, `result` como texto, errores y basura), errores en español, tiempo agotado; conversión a MusicXML (dos voces con tresillos, acordes, silencios, armadura, compás, compases que no cierran, ligaduras, duraciones compuestas, datos inválidos), que el título leído sobreviva a `merge.py` y el inventado no, `OMR_USE_CLAUDE` y respaldo a Audiveris con aviso |
 | `tests/test_preprocess.py` | Preprocesado con fotos sintéticas (hoja con pentagramas en perspectiva sobre fondo oscuro, sombra): encuentra las esquinas, recorta sin fondo, conserva las 15 líneas, saca la sombra, y devuelve la original si no hay hoja o es un escaneo |
 | `tests/test_merge.py` | Unir dos páginas de piano (2 pentagramas), el caso de distinta cantidad de pentagramas, que una página "tipo oemer" (compases que no cierran) no se reacomode, renumerar con una sola página y sacar título/compositor inventados |
 

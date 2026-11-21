@@ -1,6 +1,7 @@
 """Motor con respaldo: prueba un lector principal (rápido) y, si falla, usa otro (lento).
 
-Hoy: Audiveris (~10–60 s por página) y, de respaldo, oemer (~5 min por página).
+Hoy: Audiveris (~10–60 s por página) y, de respaldo, oemer (~5 min por página). Con el lector con IA
+activado (`OMR_USE_CLAUDE=1`) se encadenan: Claude -> (Audiveris -> oemer), con otros mensajes.
 "Falla" es: lanza un error, o devuelve un MusicXML sin compases o sin ninguna nota.
 """
 
@@ -16,6 +17,8 @@ log = logging.getLogger(__name__)
 
 FALLBACK_PROGRESS = "La lectura rápida no funcionó con {subject}; usé el lector lento, puede tardar unos minutos"
 FALLBACK_WARNING = "La lectura rápida no funcionó con {subject}; se leyó con el lector lento."
+AI_FALLBACK_PROGRESS = "La lectura con IA no funcionó con {subject}; probé con el lector común"
+AI_FALLBACK_WARNING = "La lectura con IA no funcionó con {subject}; se leyó con el lector común."
 
 
 def has_music(xml: str) -> bool:
@@ -28,9 +31,18 @@ def has_music(xml: str) -> bool:
 
 
 class FallbackEngine:
-    def __init__(self, primary: OmrEngine, fallback: OmrEngine):
+    def __init__(
+        self,
+        primary: OmrEngine,
+        fallback: OmrEngine,
+        progress: str = FALLBACK_PROGRESS,
+        warning: str = FALLBACK_WARNING,
+    ):
+        """`progress` y `warning` son los textos que se muestran al pasar al respaldo, con `{subject}`."""
         self.primary = primary
         self.fallback = fallback
+        self.progress = progress
+        self.warning = warning
         self.name = f"{primary.name}+{fallback.name}"
 
     def recognize(self, image_path: Path, work_dir: Path) -> str:
@@ -44,6 +56,6 @@ class FallbackEngine:
                 "%s falló con %s; paso a %s", self.primary.name, image_path, self.fallback.name, exc_info=True
             )
         subject = current_subject()
-        report_progress(FALLBACK_PROGRESS.format(subject=subject))
-        report_warning(FALLBACK_WARNING.format(subject=subject))
+        report_progress(self.progress.format(subject=subject))
+        report_warning(self.warning.format(subject=subject))
         return self.fallback.recognize(image_path, work_dir)
